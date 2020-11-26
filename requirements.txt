@@ -1,0 +1,2 @@
+# prior versions of pySerial do not support macOS Big Sur
+pyserial >= 3.5
