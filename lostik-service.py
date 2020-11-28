@@ -1,8 +1,8 @@
 ########################################################################
 #                                                                      #
-#          NAME:  LoRa Chat - LoStik Service                           #
+#          NAME:  LoRa Chat - TDMA LoStik Service                      #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v1.0                                                 #
+#       VERSION:  v0.5                                                 #
 #                                                                      #
 ########################################################################
 
@@ -30,39 +30,26 @@ logging.basicConfig(filename='lostik.log',
                     level=logging.INFO)
 
 #establish command line arguments
-parser = argparse.ArgumentParser(description='LoRa Chat - LoStik Service',
+parser = argparse.ArgumentParser(description='LoRa Chat - TDMA LoStik Service',
                                  epilog='Created by K7CTC.')
 parser.add_argument('--pwr',
                     choices=['low','medium','high'],
                     help='LoStik transmit power - default: low',
                     default='low')
-parser.add_argument('--cr',
-                    type=int,
-                    choices=range(5, 9),
-                    help='LoStik coding rate - default: 8',
-                    default='8')
-parser.add_argument('--wdt',
-                    type=int,
-                    choices=range(5,31),
-                    help='LoStik watchdog timer time-out in seconds - default: 8',
-                    default='8')
+
+my_node_id = lcdb.my_node_id()
+if my_node_id == None:
+    print('ERROR: Unable to set node ID for this node!')
+    sys.exit(1)
 
 #parse command line arguments
 args = parser.parse_args()
 
-#convert pwr to actual power setting expected by LoStik before proceeding
-if args.pwr == 'low':
-    args.pwr = 6
-elif args.pwr =='medium':
-    args.pwr = 12
-elif args.pwr == 'high':
-    args.pwr = 20
-
-#convert wdt from seconds to milliseconds before proceeding
-args.wdt = args.wdt * 1000
-
 #global variables
-version = 'v1.0'
+version = 'v0.5'
+ts1_dict = {0:1,5:2,10:3,15:4,20:1,25:2,30:3,35:4,40:1,45:2,50:3,55:4}
+ts2_dict = {0:1,3:2,6:3,9:4,12:1,15:2,18:3,21:4,24:1,27:2,30:3,33:4,36:1,39:2,42:3,45:4,48:1,51:2,54:3,57:4}
+timescale = 'ts1'
 
 #start logger
 logging.info('----------------------------------------------------------------------')
@@ -75,7 +62,16 @@ if lcdb.exists() == False:
     sys.exit(1)
 else:
     logging.info('File found - lora_chat.db') 
-    
+
+#grab my_node_id from the database before proceeding
+my_node_id = lcdb.my_node_id()
+if my_node_id == None:
+    print('ERROR: Unable to set node ID for this node!')
+    logging.error('Unable to set node ID for this node!')
+    sys.exit(1)
+else:
+    logging.info('My Node ID: ' + str(my_node_id))
+
 #establish database connection
 db = None
 c = None
@@ -112,17 +108,37 @@ set_sf = b'sf12'
 #Radio Bandwidth (hardware default=125)
 #values: 125, 250, 500
 set_bw = b'125'
+#Coding Rate (hardware default=4/5, script default=4/8)
+#values: 4/5, 4/6, 4/7, 4/8
+set_cr = b'4/8'
+#Watchdog Timer Time-Out (hardware default=15000, script default=30000)
+#value range: 0 to 4294967295 (0 disables wdt functionality)
+set_wdt = b'30000'
 
 #lostik PiERS node variables (can vary from one node to the next based on operating conditions)
 #Transmit Power (hardware default=2)
 #value range: 2 to 20
-set_pwr = bytes(str(args.pwr), 'ASCII')
-#Coding Rate (hardware default=4/5, script default=4/8)
-#values: 4/5, 4/6, 4/7, 4/8
-set_cr = b''.join([b'4/', bytes(str(args.cr), 'ASCII')])
-#Watchdog Timer Time-Out (hardware default=15000, script default=8000)
-#value range: 0 to 4294967295 (0 disables wdt functionality)
-set_wdt = bytes(str(args.wdt), 'ASCII')
+pwr_label = None
+pwr_lostik = None
+pwr_dbm = None
+pwr_mw = None
+if args.pwr == 'low':
+    pwr_label = 'Low'
+    pwr_lostik = '6'
+    pwr_dbm = '7.0'
+    pwr_mw = '5.0'
+
+elif args.pwr =='medium':
+    pwr_label = 'Medium'
+    pwr_lostik = '12'
+    pwr_dbm = '13.0'
+    pwr_mw = '20.0'
+elif args.pwr == 'high':
+    pwr_label = 'High'
+    pwr_lostik = '20'
+    pwr_dbm = '18.5'
+    pwr_mw = '70.8'
+set_pwr = bytes(pwr_lostik, 'ASCII')
 
 ########################################################################
 # LoStik Notes:  The Ronoth LoStik USB to serial device has a VID:PID  #
@@ -277,16 +293,6 @@ else:
     print('ERROR: Failed to set LoStik radio bandwidth to ' + set_bw.decode('UTF-8') + '!')
     logging.error('Failed to set LoStik radio bandwidth to ' + set_bw.decode('UTF-8') + '!')
     sys.exit(1)
-    
-#write "node" settings to LoStik
-#set power
-lostik.write(b''.join([b'radio set pwr ', set_pwr, b'\r\n']))
-if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik transmit power set to ' + set_pwr.decode('UTF-8') + '.')
-else:
-    print('ERROR: Failed to set LoStik transmit power to ' + set_pwr.decode('UTF-8') + '!')
-    logging.error('Failed to set LoStik transmit power to ' + set_pwr.decode('UTF-8') + '!')
-    sys.exit(1)
 #set coding rate
 lostik.write(b''.join([b'radio set cr ', set_cr, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
@@ -303,6 +309,27 @@ else:
     print('ERROR: Failed to set LoStik watchdog timer time-out to ' + set_wdt.decode('UTF-8') + '!')
     logging.error('Failed to set LoStik watchdog timer time-out to ' + set_wdt.decode('UTF-8') + '!')
     sys.exit(1)
+    
+
+
+
+
+#write "node" settings to LoStik
+#set power
+lostik.write(b''.join([b'radio set pwr ', set_pwr, b'\r\n']))
+if lostik.readline().decode('ASCII').rstrip() == 'ok':
+    logging.info('LoStik transmit power set to ' + set_pwr.decode('UTF-8') + '.')
+else:
+    print('ERROR: Failed to set LoStik transmit power to ' + set_pwr.decode('UTF-8') + '!')
+    logging.error('Failed to set LoStik transmit power to ' + set_pwr.decode('UTF-8') + '!')
+    sys.exit(1)
+
+
+
+
+
+
+
 
 #pause three quarters of a second for effect
 time.sleep(.75)
@@ -322,10 +349,6 @@ def lostik_rx_control(state): #state values are 'on' or 'off'
         lostik.write(b'radio rx 0\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
             return True
-            # if lostik_led_control('rx', 'on'):
-            #     return True
-            # else:
-            #     return False
         else:
             return False
     elif state == 'off':
@@ -333,10 +356,6 @@ def lostik_rx_control(state): #state values are 'on' or 'off'
         lostik.write(b'radio rxstop\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
             return True
-            # if lostik_led_control('rx', 'off'):
-            #     return True
-            # else:
-            #     return False
         else:
             return False
 
@@ -353,6 +372,19 @@ def lostik_get_snr():
     lostik.write(b'radio get snr\r\n')
     snr = lostik.readline().decode('ASCII').rstrip()
     return snr
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #function: force receive state and attempt to transmit hex payload
 # accepts: payload_hex (value to be transmitted)
@@ -513,7 +545,7 @@ if len(wdt) == 9:
     wdt = wdt + ' '
 
 #function: compose LoStik status interface
-def lostik_static_ui(status):      
+def lostik_static_ui(status,history):      
     now = datetime.datetime.now()
     time = now.strftime('%I:%M:%S %p')
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -524,14 +556,49 @@ def lostik_static_ui(status):
     print(f'╟────────────────────────┴────────────────────┴────────────────────╢')
     print(f'║ Modulation Mode: {mod}  │ Watchdog Timer Time-Out: {wdt}     ║')
     print(f'╟────────────────────────┴─────────────────────────────────────────╢')
-    print(f'║ CRC Header: {crc} │ IQ Inversion: {iqi} │ Last Activity: {time} ║')
+    print(f'║ CRC Header: {crc} │ IQ Inversion: {iqi} │ Current Time: {time}  ║')
     print(f'╟─────────────────┴───────────────────┴────────────────────────────╢')
-    print(f'║ Last LoStik Status: {status}                                 ║')                    
-    print(f'╚══════════════════════════════════════════════════════════════════╝')
+    print(f'║   012345678901234567890123456789012345678901234567890123456789   ║')
+    print(f'║   {history}   ║')
+    if status == 'TX':
+        print(f'╚════════════════════════════════════════════════════════╡TX╞══RX══╝'
+    elif status == 'RX':
+        print(f'╚═════════════════════════════════════════════════════════TX══╡RX╞═╝')
     print(f'Press CTRL+C to quit.')
+
+#function: traffic cop
+# accepts: node id
+# returns: boolean
+def can_tx(my_node_id,current_second):
+    if timescale == 'ts1':    
+        if current_second % 5 == 0:
+            if my_node_id == ts1_dict[current_second]:
+                return True
+    elif timescale == 'ts2':
+        if current_second % 3 == 0:
+            if my_node_id == ts2_dict[current_second]:
+                return True
+    return False
+
+history = None
 
 #the loop
 while True:
+    current_second = datetime.datetime.now().second
+    history = ''
+    
+    if can_tx(my_node_id,current_second):
+        history = history + '●'
+
+    else:
+        history = history + '○'
+
+
+
+
+
+
+
     if lostik_rx_control('on'):
         lostik_static_ui('Listening   ')
         rx_payload = ''
@@ -556,3 +623,4 @@ while True:
                 rssi = lostik_get_rssi()
                 snr = lostik_get_snr()
                 insert_rx_record(payload_hex,rssi,snr)
+    time.sleep(0.1)
