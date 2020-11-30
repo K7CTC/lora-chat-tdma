@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat - TDMA LoStik Service                      #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v0.5                                                 #
+#       VERSION:  v1.0                                                 #
 #                                                                      #
 ########################################################################
 
@@ -41,7 +41,7 @@ parser.add_argument('--pwr',
 args = parser.parse_args()
 
 #global variables
-version = 'v0.5'
+version = 'v1.0'
 ts1_dict = {0:1,5:2,10:3,15:4,20:1,25:2,30:3,35:4,40:1,45:2,50:3,55:4}
 ts2_dict = {0:1,3:2,6:3,9:4,12:1,15:2,18:3,21:4,24:1,27:2,30:3,
             33:4,36:1,39:2,42:3,45:4,48:1,51:2,54:3,57:4}
@@ -358,9 +358,6 @@ lostik_led_control('tx', 'off')
 
 logging.info('LoStik initialization complete.')
 
-#lostik can exist in one of three states: idle, tx or rx
-lostik_state = 'idle'
-
 #function: get next tx payload from lora_chat.db
 # returns: rowid and payload_hex
 #    note: terminates script on error
@@ -441,8 +438,7 @@ def lostik_rx_control(state): #state values are 'on' or 'off'
         #place LoStik in continuous receive mode
         lostik.write(b'radio rx 0\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
-            lostik_state = 'rx'
-            refresh_ui()
+            refresh_ui('rx')
             return True
         else:
             return False
@@ -450,8 +446,7 @@ def lostik_rx_control(state): #state values are 'on' or 'off'
         #halt LoStik continuous receive mode
         lostik.write(b'radio rxstop\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
-            lostik_state = 'idle'
-            refresh_ui()
+            refresh_ui('idle')
             return True
         else:
             return False
@@ -471,7 +466,7 @@ def lostik_get_snr():
     return snr
 
 #function: render LoStik status interface
-def refresh_ui():
+def refresh_ui(lostik_state):
     os.system('cls' if os.name == 'nt' else 'clear')
     print(f'╔═╡LoRa Chat TDMA LoStik Service {version}╞════════╤════════════════════╗')
     print(f'║ Frequency: {freq} │ Bandwidth: {bw} │ TX Power: {pwr}  ║')
@@ -479,13 +474,11 @@ def refresh_ui():
     print(f'║ Spreading Factor: {sf}   │ Coding Rate: {cr}   │ Sync Word: {sync}      ║')
     print(f'╟────────────────────────┼────────────────────┴────────────────────╢')
     print(f'║ Modulation Mode: {mod}  │ Watchdog Timer Time-Out: {wdt}     ║')
-    print(f'╟────────────────────────┴─────────────────────────────────────────╢')
-
     if lostik_state == 'idle':
-        print(f'╚════════════════════════╧════════════════════════════════TX═══RX══╝')
-    elif lostik_state == 'tx':
+        print(f'╚════════════════════════╧════════════════════════════════TX═══RX══╝')    
+    if lostik_state == 'tx':
         print(f'╚════════════════════════╧═══════════════════════════════▌TX▐══RX══╝')
-    elif lostik_state == 'rx':
+    if lostik_state == 'rx':
         print(f'╚════════════════════════╧════════════════════════════════TX══▌RX▐═╝')
     print(f'Press CTRL+C to quit.')
     print()
@@ -525,8 +518,7 @@ def lostik_tx_payload(payload_hex):
         lostik.write(tx_command)
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
             tx_start_time = int(round(time.time()*1000))
-            lostik_state = 'tx'
-            refresh_ui()
+            refresh_ui('tx')
             lostik_led_control('tx', 'on')
         else:
             print('ERROR: Transmit failure!')
@@ -538,15 +530,13 @@ def lostik_tx_payload(payload_hex):
         else:
             if response == 'radio_tx_ok':
                 tx_end_time = int(round(time.time()*1000))
-                lostik_state = 'idle'
-                refresh_ui()
+                refresh_ui('idle')
                 lostik_led_control('tx', 'off')
                 time_sent = tx_end_time
                 air_time = tx_end_time - tx_start_time
                 return time_sent, air_time
             elif response == 'radio_err':
-                lostik_state = 'idle'
-                refresh_ui()
+                refresh_ui('idle')
                 lostik_led_control('tx', 'off')
                 print('WARNING: Transmit failure! Radio error!')
                 logging.warning('Transmit failure! Radio error!')
@@ -568,15 +558,20 @@ while True:
                     time_sent, air_time = lostik_tx_payload(payload_hex)
                     if time_sent != 0 and air_time != 0:
                         update_db_record(rowid,time_sent,air_time)
+            else:
+                time.sleep(.5)
         else:
             if lostik_rx_control('on'):
                 rx_payload = ''
                 while rx_payload == '':
-                    rx_payload = lostik.readline().decode('ASCII').rstrip()
+                    current_second = datetime.datetime.now().second
+                    if can_tx(my_node_id,current_second):
+                        lostik_rx_control('off')
+                        rx_payload = 'tx_window' #to break from the loop
+                    else:
+                        rx_payload = lostik.readline().decode('ASCII').rstrip()
                 else:
-                    lostik_state = 'idle'
-                    refresh_ui()
-                    if rx_payload != 'radio_err':
+                    if rx_payload != 'radio_err' and rx_payload != 'tx_window':
                         rx_payload_list = rx_payload.split()
                         payload_hex = rx_payload_list[1]
                         rssi = lostik_get_rssi()
@@ -585,7 +580,6 @@ while True:
     except KeyboardInterrupt:
         c.close()
         db.close()
-        print()
         print()
         break
 sys.exit(0)
