@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat - TDMA LoStik Service                      #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v1.0                                                 #
+#       VERSION:  v0.9                                                 #
 #                                                                      #
 ########################################################################
 
@@ -41,7 +41,7 @@ parser.add_argument('--pwr',
 args = parser.parse_args()
 
 #global variables
-version = 'v1.0'
+version = 'v0.9'
 ts1_dict = {0:1,5:2,10:3,15:4,20:1,25:2,30:3,35:4,40:1,45:2,50:3,55:4}
 ts2_dict = {0:1,3:2,6:3,9:4,12:1,15:2,18:3,21:4,24:1,27:2,30:3,
             33:4,36:1,39:2,42:3,45:4,48:1,51:2,54:3,57:4}
@@ -342,7 +342,7 @@ else:
 #set power
 lostik.write(b''.join([b'radio set pwr ', set_pwr, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik transmit power set to ' + pwr_label + '(' + pwr_dbm + 'dBm/' + pwr_mw + 'mW).')
+    logging.info('LoStik transmit power set to ' + pwr_label + ' (' + pwr_dbm + 'dBm/' + pwr_mw + 'mW).')
     del(set_pwr)
 else:
     print('ERROR: Failed to set LoStik transmit power to ' + pwr_label + ' (' + pwr_dbm + 'dBm/' + pwr_mw + 'mW)!')

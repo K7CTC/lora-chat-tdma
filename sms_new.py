@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat - New SMS                                  #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v1.0                                                 #
+#       VERSION:  v0.9                                                 #
 #   DESCRIPTION:  This module validates a user provided message of     #
 #                 up to 50 characters. An SMS packet type identifier   #
 #                 is appended and the resulting data is inserted into  #

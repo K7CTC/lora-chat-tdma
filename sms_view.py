@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat - View SMS                                 #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v1.0                                                 #
+#       VERSION:  v0.9                                                 #
 #   DESCRIPTION:  This module reads the sms table from lora_chat.db    #
 #                 then prints the output to the console.               #
 #                                                                      #
