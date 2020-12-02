@@ -32,6 +32,8 @@ logging.basicConfig(filename='lostik.log',
 #establish command line arguments
 parser = argparse.ArgumentParser(description='LoRa Chat - TDMA LoStik Service',
                                  epilog='Created by K7CTC.')
+parser.add_argument('-t', '--timescale', type=int, choices=(1,2), default='1',
+                    help='time scale: 1 = 5 second TX intervals, 2 = 3 second TX intervals')
 parser.add_argument('--pwr',
                     choices=['low','medium','high'],
                     help='LoStik transmit power - default: low',
@@ -45,7 +47,6 @@ version = 'v0.9'
 ts1_dict = {0:1,5:2,10:3,15:4,20:1,25:2,30:3,35:4,40:1,45:2,50:3,55:4}
 ts2_dict = {0:1,3:2,6:3,9:4,12:1,15:2,18:3,21:4,24:1,27:2,30:3,
             33:4,36:1,39:2,42:3,45:4,48:1,51:2,54:3,57:4}
-timescale = 'ts1'
 
 #start logger
 logging.info('----------------------------------------------------------------------')
@@ -493,16 +494,16 @@ def incremental_print(text):
 # accepts: my node id and current second
 # returns: boolean
 def can_tx(my_node_id,current_second):
-    if timescale == 'ts1':
+    if args.timescale == 1:
         if current_second % 5 == 0:
             if my_node_id == ts1_dict[current_second]:
                 return True
-    elif timescale == 'ts2':
+    elif args.timescale == 2:
         if current_second % 3 == 0:
             if my_node_id == ts2_dict[current_second]:
                 return True
     return False
-
+  
 #function: force receive state and attempt to transmit hex payload
 # accepts: payload_hex (value to be transmitted)
 # retruns: time_sent and air_time

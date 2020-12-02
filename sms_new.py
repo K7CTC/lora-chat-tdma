@@ -4,9 +4,10 @@
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
 #       VERSION:  v0.9                                                 #
 #   DESCRIPTION:  This module validates a user provided message of     #
-#                 up to 50 characters. An SMS packet type identifier   #
-#                 is appended and the resulting data is inserted into  #
-#                 a new row within the sms table of lora_chat.db.      #
+#                 up to 30 or 50 characters (depending on chosen time  #
+#                 scale). An SMS packet type identifier is appended    #
+#                 and the resulting data is inserted into a new row    #
+#                 within the sms table of lora_chat.db.                #
 #                                                                      #
 ########################################################################
 
@@ -23,10 +24,12 @@ import time
 #establish and parse command line arguments
 parser = argparse.ArgumentParser(description='LoRa Chat - New SMS',
                                  epilog='Created by K7CTC. This module validates a user provided '
-                                        'message of up to 50 characters. An SMS packet type '
-                                        'identifier is appended and the resulting data is '
-                                        'inserted into a new row within the sms table of '
-                                        'lora_chat.db.')
+                                        'message of up to 30 or 50 characters (depending on '
+                                        'chosen time scale). An SMS packet type identifier is '
+                                        'appended and the resulting data is inserted into a new '
+                                        'row within the sms table of lora_chat.db.')
+parser.add_argument('-t', '--timescale', type=int, choices=(1,2), default='1',
+                    help='time scale: 1 = 5 second TX intervals, 2 = 3 second TX intervals')
 parser.add_argument('-m', '--message', nargs='?', default=None,
                     help='message of up to 50 characters in length to be queued for transmission')
 
@@ -45,11 +48,18 @@ my_node_name = lcdb.my_node_name(my_node_id)
 
 #function: message validation, returns boolean
 def validate_message(message_to_be_validated):
-    #only contain A-Z a-z 0-9 . ? ! and between 1 and 50 chars in length
-    if re.fullmatch('^[a-zA-Z0-9!?. ]{1,50}$', message_to_be_validated):
-        return True
-    else:
-        return False
+    if args.timescale == 1:
+        #only contain A-Z a-z 0-9 . ? ! and between 1 and 50 chars in length
+        if re.fullmatch('^[a-zA-Z0-9!?. ]{1,50}$', message_to_be_validated):
+            return True
+        else:
+            return False
+    elif args.timescale == 2:
+        #only contain A-Z a-z 0-9 . ? ! and between 1 and 30 chars in length
+        if re.fullmatch('^[a-zA-Z0-9!?. ]{1,30}$', message_to_be_validated):
+            return True
+        else:
+            return False
 
 #if message provided via command line is valid then insert into database
 if args.message != None:
@@ -71,7 +81,10 @@ if args.message == None:
         try:
             os.system('cls' if os.name == 'nt' else 'clear')
             print('┌─┤LoRa Chat - New SMS├────────────────────────────────────────────┐')
-            print('│ Type a message between 1 and 50 characters then press enter.     │')
+            if args.timescale == 1:               
+                print('│ Type a message between 1 and 50 characters then press enter.     │')
+            if args.timescale == 2:               
+                print('│ Type a message between 1 and 30 characters then press enter.     │')
             print('│ Your message may only contain A-Z a-Z 0-9 and the following      │')
             print('│ special characters: period, question mark and exclamation mark   │')
             print('└──────────────────────────────────────────────────────────────────┘')
@@ -81,8 +94,8 @@ if args.message == None:
             if validate_message(message):
                 if lcdb.outbound_message(my_node_id,message):
                     print()
-                    print('SUCCESS: Message has been queued for transmission.')
-                    time.sleep(5)
+                    print('SUCCESS!')
+                    time.sleep(.5)
             else:
                 print()
                 print('ERROR: Your message contained invalid characters or is of invalid length!')
