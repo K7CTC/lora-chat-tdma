@@ -69,20 +69,6 @@ if my_node_id == None:
 else:
     logging.info('My Node ID: ' + str(my_node_id))
 
-#establish database connection
-db = None
-c = None
-try:
-    db = sqlite3.connect('lora_chat.db')
-    c = db.cursor()
-    c.execute('PRAGMA foreign_keys = ON')
-except:
-    print('ERROR: Unable to connect to lora_chat.db!')
-    logging.error('Unable to connect to lora_chat.db!')
-    sys.exit(1)
-else:
-    logging.info('Connected to lora_chat.db')
-
 #lostik PiERS network variables (all nodes must share the same settings)
 #Frequency (hardware default=923300000)
 #value range: 902000000 to 928000000
@@ -359,78 +345,6 @@ lostik_led_control('tx', 'off')
 
 logging.info('LoStik initialization complete.')
 
-#function: get next tx payload from lora_chat.db
-# returns: rowid and payload_hex
-#    note: terminates script on error
-def get_next_tx_payload():
-    try:
-        c.execute('''
-            SELECT
-                rowid,
-                payload_hex,
-                time_queued,
-                time_sent
-            FROM
-                sms
-            WHERE
-                time_queued IS NOT NULL AND time_sent IS NULL;''')
-        record = c.fetchone()
-        if record:
-            return record[0], record[1]
-        else:
-            return None, None
-    except:
-        print('ERROR: Unable to get next TX payload from database!')
-        logging.error('Unable to get next TX payload!')
-        sys.exit(1)
-
-#function: drop received payload into database
-# accepts: payload_hex, rssi and snr
-#    note: terminates script on error
-def insert_rx_record(payload_hex,rssi,snr):
-    payload_raw = bytes.fromhex(payload_hex).decode('ASCII')
-    payload_list = payload_raw.split(',')
-    node_id = payload_list[1]
-    message = payload_list[2]
-    time_received = int(round(time.time()*1000))
-    try:
-        c.execute('''
-            INSERT INTO sms (
-                node_id,
-                message,
-                payload_raw,
-                payload_hex,
-                time_received,
-                rssi,
-                snr)
-            VALUES (?, ?, ?, ?, ?, ?, ?);''',
-            (node_id, message, payload_raw, payload_hex, time_received, rssi, snr))
-        db.commit()
-    except:
-        print('ERROR: Unable to insert RX record into database!')
-        logging.error('Unable to insert RX record into database!')
-        sys.exit(1)
-
-#function: update database after successful transmit
-# accepts: rowid, time_sent and air_time
-#    note: terminates script on error
-def update_db_record(rowid,time_sent,air_time):
-    try:
-        c.execute('''
-            UPDATE
-                sms
-            SET
-                time_sent=?,
-                air_time=?
-            WHERE
-                rowid=?;''',
-            (time_sent,air_time,rowid))
-        db.commit()
-    except:
-        print('ERROR: Unable to update database record of transmitted message!')
-        logging.error('Unable to update database record of transmitted message!')
-        sys.exit(1)
-
 #function: control lostik receive state
 # accepts: state with values of 'on' or 'off'
 # retruns: boolean
@@ -513,52 +427,47 @@ def lostik_tx_payload(payload_hex):
     tx_end_time = 0
     time_sent = 0
     air_time = 0
-    if lostik_rx_control('off'):
-        tx_command_elements = 'radio tx ' + payload_hex + '\r\n'
-        tx_command = tx_command_elements.encode('ASCII')
-        lostik.write(tx_command)
-        if lostik.readline().decode('ASCII').rstrip() == 'ok':
-            tx_start_time = int(round(time.time()*1000))
-            refresh_ui('tx')
-            lostik_led_control('tx', 'on')
-        else:
-            print('ERROR: Transmit failure!')
-            logging.error('Transmit failure!')
-            sys.exit(1)
-        response = ''
-        while response == '':
-            response = lostik.readline().decode('ASCII').rstrip()
-        else:
-            if response == 'radio_tx_ok':
-                tx_end_time = int(round(time.time()*1000))
-                refresh_ui('idle')
-                lostik_led_control('tx', 'off')
-                time_sent = tx_end_time
-                air_time = tx_end_time - tx_start_time
-                return time_sent, air_time
-            elif response == 'radio_err':
-                refresh_ui('idle')
-                lostik_led_control('tx', 'off')
-                print('WARNING: Transmit failure! Radio error!')
-                logging.warning('Transmit failure! Radio error!')
-                return time_sent, air_time
-
+    tx_command_elements = 'radio tx ' + payload_hex + '\r\n'
+    tx_command = tx_command_elements.encode('ASCII')
+    lostik.write(tx_command)
+    if lostik.readline().decode('ASCII').rstrip() == 'ok':
+        tx_start_time = int(round(time.time()*1000))
+        refresh_ui('tx')
+        lostik_led_control('tx', 'on')
     else:
-        print('WARNING: Transmit failure! Unable to halt LoStik continuous receive mode.')
-        logging.warning('Transmit failure! Unable to halt LoStik continuous receive mode.')
-        return time_sent, air_time
+        print('ERROR: Transmit failure!')
+        logging.error('Transmit failure!')
+        sys.exit(1)
+    response = ''
+    while response == '':
+        response = lostik.readline().decode('ASCII').rstrip()
+    else:
+        if response == 'radio_tx_ok':
+            tx_end_time = int(round(time.time()*1000))
+            refresh_ui('idle')
+            lostik_led_control('tx', 'off')
+            time_sent = tx_end_time
+            air_time = tx_end_time - tx_start_time
+            return time_sent, air_time
+        elif response == 'radio_err':
+            refresh_ui('idle')
+            lostik_led_control('tx', 'off')
+            print('WARNING: Transmit failure! Radio error!')
+            logging.warning('Transmit failure! Radio error!')
+            return time_sent, air_time
+
 
 #the loop
 while True:
     try:
         current_second = datetime.datetime.now().second
         if can_tx(my_node_id,current_second):
-            rowid, payload_hex = get_next_tx_payload()
+            rowid, payload_hex = lcdb.get_next_tx_payload()
             if rowid != None and payload_hex != None:
                 if lostik_rx_control('off'):
                     time_sent, air_time = lostik_tx_payload(payload_hex)
                     if time_sent != 0 and air_time != 0:
-                        update_db_record(rowid,time_sent,air_time)
+                        lcdb.update_db_record(rowid,time_sent,air_time)
             else:
                 time.sleep(.5)
         else:
@@ -577,10 +486,8 @@ while True:
                         payload_hex = rx_payload_list[1]
                         rssi = lostik_get_rssi()
                         snr = lostik_get_snr()
-                        insert_rx_record(payload_hex,rssi,snr)  
+                        lcdb.insert_rx_record(payload_hex,rssi,snr)  
     except KeyboardInterrupt:
-        c.close()
-        db.close()
         print()
         break
 sys.exit(0)

@@ -92,10 +92,7 @@ if args.message == None:
             print()
             message = input(my_node_name + ': ')
             if validate_message(message):
-                if lcdb.outbound_message(my_node_id,message):
-                    print()
-                    print('SUCCESS!')
-                    time.sleep(.5)
+                lcdb.outbound_message(my_node_id,message)
             else:
                 print()
                 print('ERROR: Your message contained invalid characters or is of invalid length!')

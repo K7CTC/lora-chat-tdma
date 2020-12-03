@@ -228,3 +228,85 @@ def clear_sms():
         return False
     else:
         return True
+
+#function: get next tx payload from lora_chat.db
+# returns: rowid and payload_hex
+def get_next_tx_payload():
+    db = sqlite3.connect('lora_chat.db')
+    c = db.cursor()       
+    c.execute('''
+        SELECT
+            rowid,
+            payload_hex,
+            time_queued,
+            time_sent
+        FROM
+            sms
+        WHERE
+            time_queued IS NOT NULL AND time_sent IS NULL;''')
+    record = c.fetchone()
+    c.close()
+    db.close()
+    if record:
+        return record[0], record[1]
+    else:
+        return None, None
+
+#function: drop received payload into database
+# accepts: payload_hex, rssi and snr
+# returns: boolean
+def insert_rx_record(payload_hex,rssi,snr):
+    payload_raw = bytes.fromhex(payload_hex).decode('ASCII')
+    payload_list = payload_raw.split(',')
+    node_id = payload_list[1]
+    message = payload_list[2]
+    time_received = int(round(time.time()*1000))
+    try:
+        db = sqlite3.connect('lora_chat.db')
+        c = db.cursor()
+        c.execute('''
+            INSERT INTO sms (
+                node_id,
+                message,
+                payload_raw,
+                payload_hex,
+                time_received,
+                rssi,
+                snr)
+            VALUES (?, ?, ?, ?, ?, ?, ?);''',
+            (node_id, message, payload_raw, payload_hex, time_received, rssi, snr))
+    except:
+        c.close()
+        db.close()
+        return False
+    else:
+        db.commit()
+        c.close()
+        db.close()
+        return True
+
+#function: update database after successful transmit
+# accepts: rowid, time_sent and air_time
+# returns: boolean
+def update_db_record(rowid,time_sent,air_time):
+    try:
+        db = sqlite3.connect('lora_chat.db')
+        c = db.cursor()
+        c.execute('''
+            UPDATE
+                sms
+            SET
+                time_sent=?,
+                air_time=?
+            WHERE
+                rowid=?;''',
+            (time_sent,air_time,rowid))
+    except:
+        c.close()
+        db.close()
+        return False
+    else:
+        db.commit()
+        c.close()
+        db.close()
+        return True
