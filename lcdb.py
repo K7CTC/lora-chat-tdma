@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat - Database Functions                       #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v1.0                                                 #
+#       VERSION:  v1.0 beta                                            #
 #   DESCRIPTION:  This module contains database functions for LoRa     #
 #                 Chat and is only intended for import into other      #
 #                 project modules. Not to be executed directly!        #
@@ -74,7 +74,7 @@ def exists():
     return False
 
 #function: obtain number of rows in nodes table
-# returns: row count as integer
+# returns: row count integer
 def nodes_row_count():
     db = sqlite3.connect('lora_chat.db')
     db.execute('PRAGMA foreign_keys = ON')
@@ -82,7 +82,7 @@ def nodes_row_count():
     db.close()
     return row_count    
 
-#function: logic to obtain and set the my_node boolean value
+#function: check and return my_node_id or prompt user to establish one if it doesn't exit
 # returns: my_node_id integer or None
 def my_node_id():
     #grab the maximum node id integer value before continuing
@@ -154,9 +154,9 @@ def my_node_id():
         return my_node_id[0]
     return None      
 
-#function: obtain node name based on corresponding node identifier
-# accepts: my_node_id as integer
-# returns: node_name
+#function: lookup node name based on corresponding node identifier
+# accepts: my_node_id integer
+# returns: node_name string
 def my_node_name(my_node_id):
     db = sqlite3.connect('lora_chat.db')
     c = db.cursor()
@@ -221,16 +221,17 @@ def clear_sms():
                 rssi                            INTEGER,
                 snr                             INTEGER,
                 FOREIGN KEY (node_id) REFERENCES nodes (node_id));''')
-        db.commit()
-        db.close()
     except:
         db.close()
         return False
     else:
+        db.commit()
+        db.close() 
         return True
+    return False
 
 #function: get next tx payload from lora_chat.db
-# returns: rowid and payload_hex
+# returns: rowid integer and payload_hex (hex string)
 def get_next_tx_payload():
     db = sqlite3.connect('lora_chat.db')
     c = db.cursor()       
@@ -251,6 +252,7 @@ def get_next_tx_payload():
         return record[0], record[1]
     else:
         return None, None
+    return None, None
 
 #function: drop received payload into database
 # accepts: payload_hex, rssi and snr
@@ -260,10 +262,10 @@ def insert_rx_record(payload_hex,rssi,snr):
     payload_list = payload_raw.split(',')
     node_id = payload_list[1]
     message = payload_list[2]
-    time_received = int(round(time.time()*1000))
     try:
         db = sqlite3.connect('lora_chat.db')
         c = db.cursor()
+        time_received = int(round(time.time()*1000))
         c.execute('''
             INSERT INTO sms (
                 node_id,
@@ -284,6 +286,7 @@ def insert_rx_record(payload_hex,rssi,snr):
         c.close()
         db.close()
         return True
+    return False
 
 #function: update database after successful transmit
 # accepts: rowid, time_sent and air_time
@@ -310,3 +313,4 @@ def update_db_record(rowid,time_sent,air_time):
         c.close()
         db.close()
         return True
+    return False

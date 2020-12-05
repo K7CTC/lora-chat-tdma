@@ -1,8 +1,8 @@
 ########################################################################
 #                                                                      #
-#          NAME:  LoRa Chat - New SMS                                  #
+#          NAME:  LoRa Chat TDMA - New SMS                             #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v0.9                                                 #
+#       VERSION:  v1.0 beta                                            #
 #   DESCRIPTION:  This module validates a user provided message of     #
 #                 up to 30 or 50 characters (depending on chosen time  #
 #                 scale). An SMS packet type identifier is appended    #
@@ -80,7 +80,7 @@ if args.message == None:
     while True:
         try:
             os.system('cls' if os.name == 'nt' else 'clear')
-            print('┌─┤LoRa Chat - New SMS├────────────────────────────────────────────┐')
+            print('┌─┤LoRa Chat TDMA - New SMS├───────────────────────────────────────┐')
             if args.timescale == 1:               
                 print('│ Type a message between 1 and 50 characters then press enter.     │')
             if args.timescale == 2:               

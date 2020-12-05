@@ -1,8 +1,8 @@
 ########################################################################
 #                                                                      #
-#          NAME:  LoRa Chat - View SMS                                 #
+#          NAME:  LoRa Chat TDMA - View SMS                            #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v0.9                                                 #
+#       VERSION:  v1.0 beta                                            #
 #   DESCRIPTION:  This module reads the sms table from lora_chat.db    #
 #                 then prints the output to the console.               #
 #                                                                      #
@@ -31,11 +31,11 @@ my_node_name = lcdb.my_node_name(my_node_id)
 
 rowid_marker = 0
 
-os.system('cls' if os.name == 'nt' else 'clear')
-
 db = sqlite3.connect('lora_chat.db')
 c = db.cursor()
 c.execute('PRAGMA foreign_keys = ON')
+
+os.system('cls' if os.name == 'nt' else 'clear')
 while True:
     try:    
         #get all rows with rowid greater than rowid_marker

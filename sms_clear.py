@@ -1,6 +1,6 @@
 ########################################################################
 #                                                                      #
-#          NAME:  LoRa Chat - Clear SMS Table                          #
+#          NAME:  LoRa Chat TDMA - Clear SMS Table                     #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
 #       VERSION:  v0.9                                                 #
 #   DESCRIPTION:  This module drops and recreates the sms table from   #

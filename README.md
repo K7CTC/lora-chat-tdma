@@ -2,4 +2,4 @@
 
 LoRa Chat TDMA Edition
 
-Under Construction...
+Under Construction... But getting close!

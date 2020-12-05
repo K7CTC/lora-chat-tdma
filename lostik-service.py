@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat - TDMA LoStik Service                      #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v0.9                                                 #
+#       VERSION:  v1.0 beta                                            #
 #                                                                      #
 ########################################################################
 
@@ -32,9 +32,11 @@ logging.basicConfig(filename='lostik.log',
 #establish command line arguments
 parser = argparse.ArgumentParser(description='LoRa Chat - TDMA LoStik Service',
                                  epilog='Created by K7CTC.')
-parser.add_argument('-t', '--timescale', type=int, choices=(1,2), default='1',
-                    help='time scale: 1 = 5 second TX intervals, 2 = 3 second TX intervals')
-parser.add_argument('--pwr',
+parser.add_argument('-t', '--timescale',
+                    type=int, choices=(1,2),
+                    help='time scale: 1 = 5 second TX intervals, 2 = 3 second TX intervals',
+                    default='1')
+parser.add_argument('-p', '--pwr',
                     choices=['low','medium','high'],
                     help='LoStik transmit power - default: low',
                     default='low')
@@ -43,14 +45,35 @@ parser.add_argument('--pwr',
 args = parser.parse_args()
 
 #global variables
-version = 'v0.9'
+version = 'v1.0'
 ts1_dict = {0:1,5:2,10:3,15:4,20:1,25:2,30:3,35:4,40:1,45:2,50:3,55:4}
 ts2_dict = {0:1,3:2,6:3,9:4,12:1,15:2,18:3,21:4,24:1,27:2,30:3,
             33:4,36:1,39:2,42:3,45:4,48:1,51:2,54:3,57:4}
 
+#splash screen
+os.system('cls' if os.name == 'nt' else 'clear')
+print('██╗      ██████╗ ██████╗  █████╗                           ')
+print('██║     ██╔═══██╗██╔══██╗██╔══██╗                          ')
+print('██║     ██║   ██║██████╔╝███████║                          ')
+print('██║     ██║   ██║██╔══██╗██╔══██║                          ')
+print('███████╗╚██████╔╝██║  ██║██║  ██║                          ')
+print('╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝                          ')
+print('                                                           ')
+print('                                                           ')
+print('                         ██████╗██╗  ██╗ █████╗ ████████╗  ')
+print('                        ██╔════╝██║  ██║██╔══██╗╚══██╔══╝  ')
+print('                        ██║     ███████║███████║   ██║     ')
+print('                        ██║     ██╔══██║██╔══██║   ██║     ')
+print('                        ╚██████╗██║  ██║██║  ██║   ██║     ')
+print('                         ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝ v1.0')
+print()
+
 #start logger
 logging.info('----------------------------------------------------------------------')
-logging.info('lostik.py %s started', version)
+logging.info('lostik-service.py %s started', version)
+
+#log chosen time scale
+logging.info('Chosen time scale: ' + str(args.timescale))
 
 #verify existence of lora_chat.db before proceeding
 if lcdb.exists() == False:
@@ -176,8 +199,8 @@ try:
 except:
     print('ERROR: Unable to connect to LoStik!')
     logging.error('Unable to connect to LoStik!')
-    print('HELP: Check port permissions. Current user must be member of "dialout" group.')
-    logging.info('Check port permissions. Current user must be member of "dialout" group.')
+    print('HELP: Check port permissions. Current user must be member of "dialout" group on Linux.')
+    logging.info('Check port permissions. Current user must be member of "dialout" group on Linux.')
     sys.exit(1)
 else:
     logging.info('LoStik port opened, device is connected.')
@@ -336,8 +359,8 @@ else:
     logging.error('Failed to set LoStik transmit power to ' + pwr_label + ' (' + pwr_dbm + 'dBm/' + pwr_mw + 'mW)!')
     sys.exit(1)
 
-#pause a second for effect
-time.sleep(1)
+#pause two seconds for effect (and for the splash screen)
+time.sleep(2)
 
 #turn off both LEDs to indicate we have exited "initialization" mode
 lostik_led_control('rx', 'off')
@@ -347,24 +370,35 @@ logging.info('LoStik initialization complete.')
 
 #function: control lostik receive state
 # accepts: state with values of 'on' or 'off'
-# retruns: boolean
+# returns: boolean
+#    note: exits on communication failure
 def lostik_rx_control(state): #state values are 'on' or 'off'
     if state == 'on':
         #place LoStik in continuous receive mode
         lostik.write(b'radio rx 0\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
             refresh_ui('rx')
+            logging.info('LoStik State: Receive')
             return True
         else:
-            return False
+            print('ERROR: Serial interface is busy, unable to communicate with LoStik!')
+            logging.error('Serial interface is busy, unable to communicate with LoStik!')
+            print('HELP: Disconnect and reconnect LoStik device, then try again.')
+            logging.info('Disconnect and reconnect LoStik device, then try again.')
+            sys.exit(1)
     elif state == 'off':
         #halt LoStik continuous receive mode
         lostik.write(b'radio rxstop\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
             refresh_ui('idle')
+            logging.info('LoStik State: Idle')
             return True
         else:
-            return False
+            print('ERROR: Serial interface is busy, unable to communicate with LoStik!')
+            logging.error('Serial interface is busy, unable to communicate with LoStik!')
+            print('HELP: Disconnect and reconnect LoStik device, then try again.')
+            logging.info('Disconnect and reconnect LoStik device, then try again.')
+            sys.exit(1)
 
 #function: obtain rssi of last received packet
 # returns: rssi
@@ -389,20 +423,16 @@ def refresh_ui(lostik_state):
     print(f'║ Spreading Factor: {sf}   │ Coding Rate: {cr}   │ Sync Word: {sync}      ║')
     print(f'╟────────────────────────┼────────────────────┴────────────────────╢')
     print(f'║ Modulation Mode: {mod}  │ Watchdog Timer Time-Out: {wdt}     ║')
+    print(f'╟────────────────────────┼─────────────────────────────────────────╢')
+    print(f'║ Time Scale: {args.timescale}          │ Node ID: {my_node_id}                              ║')
     if lostik_state == 'idle':
-        print(f'╚════════════════════════╧════════════════════════════════TX═══RX══╝')    
+        print(f'╚════════════════════════╧════════════════════════════════TX═══RX══╝')
     if lostik_state == 'tx':
         print(f'╚════════════════════════╧═══════════════════════════════▌TX▐══RX══╝')
     if lostik_state == 'rx':
         print(f'╚════════════════════════╧════════════════════════════════TX══▌RX▐═╝')
     print(f'Press CTRL+C to quit.')
     print()
-
-#function: bypass the print() buffer so we can write to the console direct
-# accepts: text (to be written to the console)
-def incremental_print(text):
-    sys.stdout.write(str(text))
-    sys.stdout.flush()
 
 #function: traffic cop (check to see if we can transmit)
 # accepts: my node id and current second
@@ -417,8 +447,8 @@ def can_tx(my_node_id,current_second):
             if my_node_id == ts2_dict[current_second]:
                 return True
     return False
-  
-#function: force receive state and attempt to transmit hex payload
+
+#function: attempt to transmit hex payload
 # accepts: payload_hex (value to be transmitted)
 # retruns: time_sent and air_time
 #    note: terminates script on error
@@ -456,8 +486,7 @@ def lostik_tx_payload(payload_hex):
             logging.warning('Transmit failure! Radio error!')
             return time_sent, air_time
 
-
-#the loop
+#the loop!!!
 while True:
     try:
         current_second = datetime.datetime.now().second
@@ -468,8 +497,10 @@ while True:
                     time_sent, air_time = lostik_tx_payload(payload_hex)
                     if time_sent != 0 and air_time != 0:
                         lcdb.update_db_record(rowid,time_sent,air_time)
+                        logging.info('Packet transmitted.')
             else:
-                time.sleep(.5)
+                #sleep to prevent unnecessary database access within the loop
+                time.sleep(2)
         else:
             if lostik_rx_control('on'):
                 rx_payload = ''
@@ -477,17 +508,23 @@ while True:
                     current_second = datetime.datetime.now().second
                     if can_tx(my_node_id,current_second):
                         lostik_rx_control('off')
-                        rx_payload = 'tx_window' #to break from the loop
+                        rx_payload = 'tx_window' #fake payload to break from the loop
                     else:
                         rx_payload = lostik.readline().decode('ASCII').rstrip()
                 else:
-                    if rx_payload != 'radio_err' and rx_payload != 'tx_window':
+                    if rx_payload == 'busy':
+                        print('ERROR: LoStik busy!')
+                        logging.error('LoStik busy!')
+                        sys.exit(1)
+                    elif rx_payload != 'radio_err' and rx_payload != 'tx_window':
                         rx_payload_list = rx_payload.split()
                         payload_hex = rx_payload_list[1]
                         rssi = lostik_get_rssi()
                         snr = lostik_get_snr()
-                        lcdb.insert_rx_record(payload_hex,rssi,snr)  
+                        lcdb.insert_rx_record(payload_hex,rssi,snr)
+                        logging.info('Packet received.')
     except KeyboardInterrupt:
         print()
         break
+lostik.close()
 sys.exit(0)
