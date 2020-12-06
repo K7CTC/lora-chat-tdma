@@ -1,6 +1,6 @@
-# LoRa Chat TDMA
+# LoRa Chat TDMA (BETA)
 
-LoRa Chat TDMA edition is an experimental SMS (Short Message Service) application that utilizes the LoRa RF modulation scheme to send and receive undirected plaintext messages of 50 characters or less.  The application is 100% scratch built in Python 3 and is cross-platform.  LoRa Chat has been tested on macOS Big Sur, Windows 10 as well as Raspberry Pi OS.  All modules have been tested with Python v3.7.3 and Python v3.9.  LoRa Chat is an extremely light weight console application with a simple and easy to understand user interface.
+LoRa Chat TDMA edition is an experimental SMS (Short Message Service) application that utilizes the LoRa RF modulation scheme to send and receive undirected plaintext messages of up to 30 or 50 characters.  The TDMA edition features a custom Time Division Multiple Access algorithm with the intent to eliminate the possibility of packet collisions.  The application is 100% scratch built in Python 3 and is cross-platform.  LoRa Chat has been tested on macOS Big Sur, Windows 10 as well as Raspberry Pi OS.  All modules have been tested with Python v3.7.3 and Python v3.9.  LoRa Chat is an extremely light weight console application with a simple and easy to understand user interface.
 
 ## Required Hardware
 
@@ -16,6 +16,12 @@ Ronoth ships the LoStik with a 915MHz stubby antenna, the kind you expect to see
 
 * [915MHz Dipole Antenna](https://lowpowerlab.com/shop/product/193)
 * [915MHz Base Antenna](https://diamondantenna.net/bc920.html)
+
+## Other Compatible Hardware
+
+* [915MHz Yagi Antenna](https://www.m2inc.com/FG915XBISP)
+
+If I decide to drop more cash into this project, the high performance M2 yagi antenna is top of list.
 
 ## Software Dependencies
 
@@ -42,21 +48,35 @@ This concept was likely the most difficult to implement and took four code itera
 
 ### TDMA (Time Division Multiple Access)
 
-For this project, I have developed a custom [TDMA](https://en.wikipedia.org/wiki/Time-division_multiple_access) algorythm taylored for use with LoRa.  My TDMA algorythm is based on the assumption of a LoRa Chat network consisting of 4 nodes.  LoRa Chat incorporates a concept I refer to as the "time scale".  The time scale determines the duration of the transmit window for each node 
+For this project, I have developed a custom [TDMA](https://en.wikipedia.org/wiki/Time-division_multiple_access) algorithm taylored for use with LoRa.  My TDMA algorithm is based on the assumption of a LoRa Chat network consisting of 4 nodes.  LoRa Chat incorporates a concept I refer to as the "time scale".  The time scale determines the duration of the transmit window for each node.  LoRa Chat offers two time scale options, 1 and 2.  
 
+The time scale is specified by the -t or --timescale command line argument followed by the desired time scale integer.  This command line argument applies to both lostik_service.py and sms_new.py.  If the argument is not provided, time scale 1 is used by default.
 
+#### Time Scale 1
 
-### Ronoth LoStik Watchdog Timer Time-Out
+Time scale 1 (default) specifies a TX window of 5 seconds.  With 4 nodes, this equates to a TX window occurring every 20 seconds (3x per minute) and lasting for a maximum of 5 seconds.  Time scale 1 has a maximum message length of 50 characters.
 
-One of the features of LoStik is referred to as the "Watchdog Timer Time-Out" (WDT).  When enabled, this prevents the device from getting stuck in a transmit or a receive state for longer than the duration specified.  In LoRa Chat, the default state of the LoStik is "idle", neither transmitting or receiving.  When the LoStik is placed in a transmit or receive state, the WDT kicks in.  When the allotted time is reached (in milliseconds) the device will drop back to an idle state while raising an error.
+#### Time Scale 2
 
-### TX/RX "Cycle"
+Time scale 2 specifies a TX window of 3 seconds.  With 4 nodes, this equates to a TX window occcurring every 12 seconds (5x per minute) and lasting for a maximum of 3 seconds.  Time scale 2 has a maximum message length of 30 characters.
 
-LoRa Chat utilizes the aforementioned WDT as the timing mechanism for a TX/RX cycle or "loop".  The default WDT value for this project is 8 seconds but this can be configuraed for anywhere between 5 and 30 seconds.  The longest message transmit time is roughly 3.5 seconds so we are not concerned with the WDT on transmit, only on receive.  If a message is received or if the WDT is triggered, LoRa chat processes it accordingly then checks for outgoing messages.  Should an outgoing message exist, it is sent and the process repeats.
+### Accuracy of System Clock
 
-## Known Limitations
+Since we are using TDMA to control the TX/RX windows for each node, it is crucial that all nodes within the network have accurate time.  For best performance, it is recommended that you syncronize your system clock with internet time servers immediately before use of LoRa Chat TDMA.
 
-Since we rely on the WDT or received packets to control the timing of the TX/RX cycle it is possible that a "collision" can occur.  This can happen when multiple nodes transmit at the same time or if a node drops out of its receive state while a message is in the process of being transmitted by another node.  LoRa Chat is experimental and not indended for reliable message delivery.  In testing, a WDT value of eight seconds seemed to strike the right balance of reliability and speed.  Just know that even in ideal RF conditions, it is possible for a message to get clobbered.
+#### Sync Clock - Windows 10
+
+[How to Force Sync Time with Command in Windows](https://windowsloop.com/windows-time-sync-command/)
+
+Open a command prompt as administrator then enter the following command:
+w32tm /resync
+
+#### Sync Clock - macOS
+
+[macOS Date & Time Synchronization](https://superuser.com/questions/155785/mac-os-x-date-time-synchronization)
+
+Open a terminal window and enter the following command:
+sudo sntp -sS time.apple.com
 
 ## Project File Descriptions
 
@@ -96,7 +116,7 @@ This module simply drops and recreates the sms table from lora_chat.db thus purg
 
 ### sms_new.py
 
-This module validates a user provided message of up to 50 characters.  An SMS packet type identifier is appended and the resulting data is inserted into a new row within the sms table of lora_chat.db.  This module can be run interactively or non-interactively by passing the optional --msg command line argument.  If the message is passed via command line, the module will deposit the message into the database, report success/fail and exit.  If run interactively, the module will loop a prompt to provide an outgoing message.
+This module validates a user provided message of up to 30 or 50 characters (depending on selected time scale).  An SMS packet type identifier is appended and the resulting data is inserted into a new row within the sms table of lora_chat.db.  This module can be run interactively or non-interactively by passing the optional --msg command line argument.  If the message is passed via command line, the module will deposit the message into the database, report success/fail and exit.  If run interactively, the module will loop a prompt to provide an outgoing message.
 
 ### sms_view.py
 
@@ -117,8 +137,6 @@ You will want to open three separate terminal windows.  Start by running sms_new
 To send a message, simply type a message in SMS New.  Your message will be queued for transmission.  On the next transmit cycle of the LoStik, the LoStik Service checks for outgoing message(s) and transmits it.  Only one message is sent per transmit cycle using FIFO (first in, first out).  After an outgoing message has been transmitted, the database record is updated to reflect the time sent as well as the time spend "on air".  
 
 SMS View checks for changes in the database once per second.  When an outgoing message had been sent or an incoming message has been received, it is formatted and displayed in a "chat" style interface with all pertinent details.
-
-The LoStik Service runs in an infinite loop based on the hardware Watchdog Timer Time-Out on the LoStik or receipt of a message from another node.  The default is 8 seconds, meaning that if nothing is received within 8 seconds, the device drops out of its receive state and returns to idle.  The same is true for transmit.  A transmission longer than 8 seconds will cause the device to drop out of the transmit state and return to idle (with an error).  Upon successful message receipt the application will store the message in the database and check for the next outgoing message.  If a message is found it is sent.
 
 ## Normal Operation
 
