@@ -378,7 +378,6 @@ def lostik_rx_control(state): #state values are 'on' or 'off'
         lostik.write(b'radio rx 0\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
             refresh_ui('rx')
-            logging.info('LoStik State: Receive')
             return True
         else:
             print('ERROR: Serial interface is busy, unable to communicate with LoStik!')
@@ -391,7 +390,6 @@ def lostik_rx_control(state): #state values are 'on' or 'off'
         lostik.write(b'radio rxstop\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
             refresh_ui('idle')
-            logging.info('LoStik State: Idle')
             return True
         else:
             print('ERROR: Serial interface is busy, unable to communicate with LoStik!')
@@ -497,7 +495,6 @@ while True:
                     time_sent, air_time = lostik_tx_payload(payload_hex)
                     if time_sent != 0 and air_time != 0:
                         lcdb.update_db_record(rowid,time_sent,air_time)
-                        logging.info('Packet transmitted.')
             else:
                 #sleep to prevent unnecessary database access within the loop
                 time.sleep(2)
@@ -522,9 +519,11 @@ while True:
                         rssi = lostik_get_rssi()
                         snr = lostik_get_snr()
                         lcdb.insert_rx_record(payload_hex,rssi,snr)
-                        logging.info('Packet received.')
     except KeyboardInterrupt:
         print()
         break
 lostik.close()
+logging.info('LoStik serial connection closed.')
+logging.info('lostik-service.py %s stopped', version)
+logging.info('----------------------------------------------------------------------')
 sys.exit(0)
