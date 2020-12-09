@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat TDMA - New SMS                             #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v1.0 beta                                            #
+#       VERSION:  v1.0                                                 #
 #   DESCRIPTION:  This module validates a user provided message of     #
 #                 up to 30 or 50 characters (depending on chosen time  #
 #                 scale). An SMS packet type identifier is appended    #

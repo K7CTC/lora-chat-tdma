@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat TDMA - View SMS                            #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v1.0 beta                                            #
+#       VERSION:  v1.0                                                 #
 #   DESCRIPTION:  This module reads the sms table from lora_chat.db    #
 #                 then prints the output to the console.               #
 #                                                                      #

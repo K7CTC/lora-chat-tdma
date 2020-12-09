@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat - Database Functions                       #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v1.0 beta                                            #
+#       VERSION:  v1.0                                                 #
 #   DESCRIPTION:  This module contains database functions for LoRa     #
 #                 Chat and is only intended for import into other      #
 #                 project modules. Not to be executed directly!        #

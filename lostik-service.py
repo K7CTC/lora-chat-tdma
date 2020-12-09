@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat - TDMA LoStik Service                      #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v1.0 beta                                            #
+#       VERSION:  v1.0                                                 #
 #                                                                      #
 ########################################################################
 

@@ -1,6 +1,6 @@
 # LoRa Chat TDMA (BETA)
 
-LoRa Chat TDMA edition is an experimental SMS (Short Message Service) application that utilizes the LoRa RF modulation scheme to send and receive undirected plaintext messages of up to 30 or 50 characters.  The TDMA edition features a custom Time Division Multiple Access algorithm with the intent to eliminate the possibility of packet collisions.  The application is 100% scratch built in Python 3 and is cross-platform.  LoRa Chat has been tested on macOS Big Sur, Windows 10 as well as Raspberry Pi OS.  All modules have been tested with Python v3.7.3 and Python v3.9.  LoRa Chat is an extremely light weight console application with a simple and easy to understand user interface.
+LoRa Chat TDMA edition is an experimental SMS (Short Message Service) application that utilizes the LoRa RF modulation scheme to send and receive undirected plaintext messages of up to 30 or 50 characters.  The TDMA edition features a Time Division Multiple Access algorithm with the intent to eliminate the probability of packet collisions.  The application is 100% scratch built in Python 3 and is cross-platform.  LoRa Chat has been tested on macOS Big Sur, Windows 10 as well as Raspberry Pi OS.  All modules have been tested with Python v3.7.3 and Python v3.9.  LoRa Chat is an extremely light weight console application with a simple and easy to understand user interface.
 
 ## Required Hardware
 
@@ -21,7 +21,7 @@ Ronoth ships the LoStik with a 915MHz stubby antenna, the kind you expect to see
 
 * [915MHz Yagi Antenna](https://www.m2inc.com/FG915XBISP)
 
-If I decide to drop more cash into this project, the high performance M2 yagi antenna is top of list.
+If I decide to invest more into this project, the high performance M2 yagi antenna is top of list.
 
 ## Software Dependencies
 
@@ -48,7 +48,7 @@ This concept was likely the most difficult to implement and took four code itera
 
 ### TDMA (Time Division Multiple Access)
 
-For this project, I have developed a custom [TDMA](https://en.wikipedia.org/wiki/Time-division_multiple_access) algorithm taylored for use with LoRa.  My TDMA algorithm is based on the assumption of a LoRa Chat network consisting of 4 nodes.  LoRa Chat incorporates a concept I refer to as the "time scale".  The time scale determines the duration of the transmit window for each node.  LoRa Chat offers two time scale options, 1 and 2.  
+For this project, I have developed a [TDMA](https://en.wikipedia.org/wiki/Time-division_multiple_access) algorithm taylored for use with LoRa.  My TDMA algorithm is based on the assumption of a LoRa Chat network consisting of 4 nodes.  LoRa Chat incorporates a concept I refer to as the "time scale".  The time scale determines the duration of the transmit window for each node.  Modifying the time scale impacts the packet density/throughput of the "network" over time.  LoRa Chat offers two time scale options, 1 and 2.
 
 The time scale is specified by the -t or --timescale command line argument followed by the desired time scale integer.  This command line argument applies to both lostik_service.py and sms_new.py.  If the argument is not provided, time scale 1 is used by default.
 
@@ -94,7 +94,9 @@ This module contains functions for interacting with lora_chat.db, the database t
 
 ### lostik-service.py
 
-This module contains all of the logic for interfacing with the Ronoth LoStik.  The LoStik Service accepts three optional command line arguments; transmit power, coding rate and watchdog timer time-out.  For additional details on usage please execute with the --help argument.
+This module contains all of the logic for interfacing with the Ronoth LoStik.  The LoStik Service accepts two optional command line arguments; time scale and power.  For additional details on usage please execute with the --help argument.
+
+The LoStik Service begins by establishing all of the LoStik settings to be used with LoRa Chat.  Details of these settings can be observed by reviewing the module source code.  Next, the LoStik Service attempts to detect the presence of a LoStik attached to the computer and connect to it if found.  Once a connection is established, settings are written to the LoStik.  Finally, the service enters an infinite loop where the current time is used to determine if it is "safe" to transmit based on the selected time scale.  When a TX windows occurs, the service checks for outgoing messages and transmits one if found.  Otherwise the LoStik enters a receive state listening for messages from other nodes.
 
 #### Regarding Transmit Power
 
@@ -143,10 +145,6 @@ SMS View checks for changes in the database once per second.  When an outgoing m
 Simply leave all three programs running in their terminal windows.  Newly received messages will automatically appear within SMS View.  Outgoing messages will not appear in SMS View until they are successfully transmitted.  The application runs in an infinite loop and is considered stable.  Data is saved to the database "on the fly" so even if execution is halted...  The chat history and selected station identifier remain.
 
 To start over, simply delete the lora_chat.db file.  If you only want to clear the chat history, run sms_clear.py (preferably while sms_view.py is not running).
-
-## Final Thoughts
-
-I have successfully tested round trip message transmission over a signal path of 13.5mi with both nodes running at high power.  In the future, I plan additional tests to see if I can exceed a 16mi signal path.  LoRa is an incredible modulation scheme when you consider this is accomplished with less than 100mW.
 
 ## Developed By
 
