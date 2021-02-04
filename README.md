@@ -1,4 +1,4 @@
-# LoRa Chat TDMA (BETA)
+# LoRa Chat TDMA
 
 LoRa Chat TDMA edition is an experimental SMS (Short Message Service) application that utilizes the LoRa RF modulation scheme to send and receive undirected plaintext messages of up to 30 or 50 characters.  The TDMA edition features a Time Division Multiple Access algorithm with the intent to eliminate the probability of packet collisions.  The application is 100% scratch built in Python 3 and is cross-platform.  LoRa Chat has been tested on macOS Big Sur, Windows 10 as well as Raspberry Pi OS.  All modules have been tested with Python v3.7.3 and Python v3.9.  LoRa Chat is an extremely light weight console application with a simple and easy to understand user interface.
 
