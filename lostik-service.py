@@ -17,17 +17,10 @@ import lcdb
 import argparse
 import atexit
 import datetime
-import logging
 import os
 import sqlite3
 import sys
 import time
-
-#establish logging
-logging.basicConfig(filename='lostik.log',
-                    format='%(asctime)s %(levelname)s: %(message)s',
-                    datefmt='%Y-%m-%d %I:%M:%S %p',
-                    level=logging.INFO)
 
 #establish command line arguments
 parser = argparse.ArgumentParser(description='LoRa Chat - TDMA LoStik Service',
@@ -68,29 +61,16 @@ print('                        ╚██████╗██║  ██║█�
 print('                         ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝ v1.0')
 print()
 
-#start logger
-logging.info('----------------------------------------------------------------------')
-logging.info('lostik-service.py %s started', version)
-
-#log chosen time scale
-logging.info('Chosen time scale: ' + str(args.timescale))
-
 #verify existence of lora_chat.db before proceeding
 if lcdb.exists() == False:
     print('ERROR: File not found - lora_chat.db')
-    logging.error('File not found - lora_chat.db')
     sys.exit(1)
-else:
-    logging.info('File found - lora_chat.db')
 
 #grab my_node_id from the database before proceeding
 my_node_id = lcdb.my_node_id()
 if my_node_id == None:
     print('ERROR: Unable to set node ID for this node!')
-    logging.error('Unable to set node ID for this node!')
     sys.exit(1)
-else:
-    logging.info('My Node ID: ' + str(my_node_id))
 
 #lostik PiERS network variables (all nodes must share the same settings)
 #Frequency (hardware default=923300000)
@@ -186,43 +166,30 @@ lostik_port = None
 ports = serial.tools.list_ports.grep('1A86:7523')
 for port in ports:
     lostik_port = port.device
-    logging.info('LoStik detected on port: ' + lostik_port)
 del(ports)
 if lostik_port == None:
     print('ERROR: LoStik not detected!')
-    logging.error('LoStik not detected!')
     print('HELP: Check serial port descriptor and/or device connection.')
-    logging.info('Check serial port descriptor and/or device connection.')
     sys.exit(1)
 try:
     lostik = serial.Serial(lostik_port, baudrate=57600, timeout=1)
 except:
     print('ERROR: Unable to connect to LoStik!')
-    logging.error('Unable to connect to LoStik!')
     print('HELP: Check port permissions. Current user must be member of "dialout" group on Linux.')
-    logging.info('Check port permissions. Current user must be member of "dialout" group on Linux.')
     sys.exit(1)
-else:
-    logging.info('LoStik port opened, device is connected.')
 del(lostik_port)
 
 #check LoStik firmware version
 lostik.write(b'sys get ver\r\n')
 lostik_version = lostik.readline().decode('ASCII').rstrip()
-if lostik_version == 'RN2903 1.0.5 Nov 06 2018 10:45:27':
-    logging.info('LoStik firmware version: ' + lostik_version)
-else:
+if lostik_version != 'RN2903 1.0.5 Nov 06 2018 10:45:27':
     print('ERROR: LoStik failed to return expected firmware version!')
-    logging.error('LoStik failed to return expected firmware version!')
     sys.exit(1)
 
 #attempt to pause mac (LoRaWAN) as required to issue commands directly to the radio
 lostik.write(b'mac pause\r\n')
-if lostik.readline().decode('ASCII').rstrip() == '4294967245':
-    logging.info('LoStik LoRaWAN successfully paused.')
-else:
+if lostik.readline().decode('ASCII').rstrip() != '4294967245':
     print('ERROR: Unable to pause LoRaWAN!')
-    logging.error('Unable to pause LoRaWAN!')
     sys.exit(1)
 
 #function: control lostik LEDs
@@ -263,100 +230,78 @@ def lostik_led_control(led, state): #values are rx/tx and on/off
 lostik_led_control('rx', 'on')
 lostik_led_control('tx', 'on')
 
-logging.info('Begin LoStik initialization.')
-
 #write "network" settings to LoStik
 #set frequency
 lostik.write(b''.join([b'radio set freq ', set_freq, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik frequency set to ' + set_freq.decode('UTF-8') + '.')
     del(set_freq)
 else:
     print('ERROR: Failed to set LoStik frequency to ' + set_freq.decode('UTF-8') + '!')
-    logging.error('Failed to set LoStik frequency to ' + set_freq.decode('UTF-8') + '!')
     sys.exit(1)
 #set mode
 lostik.write(b''.join([b'radio set mod ', set_mod, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik modulation mode set to LoRa.')
     del(set_mod)
 else:
     print('ERROR: Failed to set LoStik modulation mode to LoRa!')
-    logging.error('Failed to set LoStik modulation mode to LoRa!')
     sys.exit(1)
 #set CRC header usage
 lostik.write(b''.join([b'radio set crc ', set_crc, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik CRC header enabled.')
     del(set_crc)
 else:
     print('ERROR: Failed to enable LoStik CRC header setting!')
-    logging.error('Failed to enable LoStik CRC header setting!')
     sys.exit(1)
 #set IQ inversion
 lostik.write(b''.join([b'radio set iqi ', set_iqi, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik IQ inversion disabled.')
     del(set_iqi)
 else:
     print('ERROR: Failed to disable LoStik IQ inversion setting!')
-    logging.error('Failed to disable LoStik IQ inversion setting!')
     sys.exit(1)
 #set sync word
 lostik.write(b''.join([b'radio set sync ', set_sync, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik sync word set to ' + set_sync.decode('UTF-8') + '.')
     del(set_sync)
 else:
     print('ERROR: Failed to set LoStik sync word to ' + set_sync.decode('UTF-8') + '!')
-    logging.error('Failed to set LoStik sync word to ' + set_sync.decode('UTF-8') + '!')
     sys.exit(1)
 #set spreading factor
 lostik.write(b''.join([b'radio set sf ', set_sf, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik spreading factor set to ' + set_sf.decode('UTF-8') + '.')
     del(set_sf)
 else:
     print('ERROR: Failed to set LoStik spreading factor to ' + set_sf.decode('UTF-8') + '!')
-    logging.error('Failed to set LoStik spreading factor to ' + set_sf.decode('UTF-8') + '!')
     sys.exit(1)
 #set radio bandwidth
 lostik.write(b''.join([b'radio set bw ', set_bw, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik radio bandwidth set to ' + set_bw.decode('UTF-8') + '.')
     del(set_bw)
 else:
     print('ERROR: Failed to set LoStik radio bandwidth to ' + set_bw.decode('UTF-8') + '!')
-    logging.error('Failed to set LoStik radio bandwidth to ' + set_bw.decode('UTF-8') + '!')
     sys.exit(1)
 #set coding rate
 lostik.write(b''.join([b'radio set cr ', set_cr, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik coding rate set to ' + set_cr.decode('UTF-8') + '.')
     del(set_cr)
 else:
     print('ERROR: Failed to set LoStik coding rate to ' + set_cr.decode('UTF-8') + '!')
-    logging.error('Failed to set LoStik coding rate to ' + set_cr.decode('UTF-8') + '!')
     sys.exit(1)
 #set watchdog timer time-out
 lostik.write(b''.join([b'radio set wdt ', set_wdt, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik watchdog time time-out ' + set_wdt.decode('UTF-8') + '.')
     del(set_wdt)
 else:
     print('ERROR: Failed to set LoStik watchdog timer time-out to ' + set_wdt.decode('UTF-8') + '!')
-    logging.error('Failed to set LoStik watchdog timer time-out to ' + set_wdt.decode('UTF-8') + '!')
     sys.exit(1)
 
 #write "node" settings to LoStik
 #set power
 lostik.write(b''.join([b'radio set pwr ', set_pwr, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() == 'ok':
-    logging.info('LoStik transmit power set to ' + pwr_label + ' (' + pwr_dbm + 'dBm/' + pwr_mw + 'mW).')
     del(set_pwr)
 else:
     print('ERROR: Failed to set LoStik transmit power to ' + pwr_label + ' (' + pwr_dbm + 'dBm/' + pwr_mw + 'mW)!')
-    logging.error('Failed to set LoStik transmit power to ' + pwr_label + ' (' + pwr_dbm + 'dBm/' + pwr_mw + 'mW)!')
     sys.exit(1)
 
 #pause two seconds for effect (and for the splash screen)
@@ -365,8 +310,6 @@ time.sleep(2)
 #turn off both LEDs to indicate we have exited "initialization" mode
 lostik_led_control('rx', 'off')
 lostik_led_control('tx', 'off')
-
-logging.info('LoStik initialization complete.')
 
 #function: control lostik receive state
 # accepts: state with values of 'on' or 'off'
@@ -381,9 +324,7 @@ def lostik_rx_control(state): #state values are 'on' or 'off'
             return True
         else:
             print('ERROR: Serial interface is busy, unable to communicate with LoStik!')
-            logging.error('Serial interface is busy, unable to communicate with LoStik!')
             print('HELP: Disconnect and reconnect LoStik device, then try again.')
-            logging.info('Disconnect and reconnect LoStik device, then try again.')
             sys.exit(1)
     elif state == 'off':
         #halt LoStik continuous receive mode
@@ -393,9 +334,7 @@ def lostik_rx_control(state): #state values are 'on' or 'off'
             return True
         else:
             print('ERROR: Serial interface is busy, unable to communicate with LoStik!')
-            logging.error('Serial interface is busy, unable to communicate with LoStik!')
             print('HELP: Disconnect and reconnect LoStik device, then try again.')
-            logging.info('Disconnect and reconnect LoStik device, then try again.')
             sys.exit(1)
 
 #function: obtain rssi of last received packet
@@ -464,7 +403,6 @@ def lostik_tx_payload(payload_hex):
         lostik_led_control('tx', 'on')
     else:
         print('ERROR: Transmit failure!')
-        logging.error('Transmit failure!')
         sys.exit(1)
     response = ''
     while response == '':
@@ -481,7 +419,6 @@ def lostik_tx_payload(payload_hex):
             refresh_ui('idle')
             lostik_led_control('tx', 'off')
             print('WARNING: Transmit failure! Radio error!')
-            logging.warning('Transmit failure! Radio error!')
             return time_sent, air_time
 
 #the loop!!!
@@ -511,7 +448,6 @@ while True:
                 else:
                     if rx_payload == 'busy':
                         print('ERROR: LoStik busy!')
-                        logging.error('LoStik busy!')
                         sys.exit(1)
                     elif rx_payload != 'radio_err' and rx_payload != 'tx_window':
                         rx_payload_list = rx_payload.split()
@@ -523,7 +459,4 @@ while True:
         print()
         break
 lostik.close()
-logging.info('LoStik serial connection closed.')
-logging.info('lostik-service.py %s stopped', version)
-logging.info('----------------------------------------------------------------------')
 sys.exit(0)
