@@ -2,7 +2,7 @@
 #                                                                      #
 #          NAME:  LoRa Chat TDMA - New SMS                             #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v1.0                                                 #
+#       VERSION:  v2.0 beta                                            #
 #   DESCRIPTION:  This module validates a user provided message of     #
 #                 up to 30 or 50 characters (depending on chosen time  #
 #                 scale). An SMS packet type identifier is appended    #
@@ -15,23 +15,10 @@
 import lcdb
 
 #import from standard library
-import argparse
 import os
 import re
 import sys
 import time
-
-#establish and parse command line arguments
-parser = argparse.ArgumentParser(description='LoRa Chat - New SMS',
-                                 epilog='Created by K7CTC. This module validates a user provided '
-                                        'message of up to 30 or 50 characters (depending on '
-                                        'chosen time scale). An SMS packet type identifier is '
-                                        'appended and the resulting data is inserted into a new '
-                                        'row within the sms table of lora_chat.db.')
-parser.add_argument('-t', '--timescale', type=int, choices=(1,2), default='1',
-                    help='time scale: 1 = 5 second TX intervals, 2 = 3 second TX intervals')
-parser.add_argument('-m', '--message', nargs='?', default=None,
-                    help='message of up to 50 characters in length to be queued for transmission')
 
 if lcdb.exists() == False:
     print('ERROR: File not found - lora_chat.db')
