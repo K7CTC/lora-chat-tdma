@@ -1,7 +1,6 @@
 # Project files
 **/.DS_Store
-lora_chat.db
-lostik.log
+piers.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,6 +1,6 @@
 ########################################################################
 #                                                                      #
-#          NAME:  LoRa Chat - TDMA LoStik Service                      #
+#          NAME:  PiERS Chat - TDMA LoStik Service                     #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
 #       VERSION:  v2.0 (beta)                                          #
 #                                                                      #
@@ -11,9 +11,9 @@ import serial
 import serial.tools.list_ports
 
 #import from project library
-from console import console, cursor_hide, cursor_show, cursor_move
+from console import console, move_cursor
 import lostik_settings
-import lcdb
+import db
 
 #import from standard library
 import argparse
@@ -23,7 +23,6 @@ import sys
 import time
 
 console.clear()
-cursor_hide()
 
 #establish and parse command line arguments
 parser = argparse.ArgumentParser(description='LoRa Chat - TDMA LoStik Service',
@@ -49,17 +48,6 @@ elif args.pwr == 'high':
     PWR_LABEL_DBM = '18.5 dBm'
     PWR_LABEL_MW = '70.8 mW'
 
-#verify existence of lora_chat.db before proceeding
-if lcdb.exists() == False:
-    console.print('[bright_red]ERROR[/]: File not found - lora_chat.db')
-    sys.exit(1)
-
-#grab my_node_id from the database before proceeding
-my_node_id = lcdb.my_node_id()
-if my_node_id == None:
-    console.print('[bright_red]ERROR[/]: Unable to set node ID for this node!')
-    sys.exit(1)
-
 ########################################################################
 # LoStik Notes:  The Ronoth LoStik USB to serial device has a VID:PID  #
 #                equal to 1A86:7523. Using pySerial we are able to     #
@@ -79,51 +67,129 @@ for port in ports:
     lostik_port = port.device
 del(ports)
 if lostik_port == None:
-    console.print('[bright_red]ERROR[/]: LoStik not detected!')
+    console.print('[bright_red][ERROR][/] LoStik not detected!')
     console.print('HELP: Check serial port descriptor and/or device connection.')
     sys.exit(1)
 try:
     lostik = serial.Serial(lostik_port, baudrate=57600, timeout=1)
 except:
-    console.print('[bright_red]ERROR[/]: Unable to connect to LoStik!')
+    console.print('[bright_red][ERROR][/] Unable to connect to LoStik!')
     console.print('HELP: Check port permissions. User must be member of "dialout" group on Linux.')
     sys.exit(1)
 del(lostik_port)
 
 #check LoStik firmware version before proceeding
 lostik.write(b'sys get ver\r\n')
-lostik_version = lostik.readline().decode('ASCII').rstrip()
-if lostik_version != 'RN2903 1.0.5 Nov 06 2018 10:45:27':
-    console.print('[bright_red]ERROR[/]: LoStik failed to return expected firmware version!')
+FIRMWARE_VERSION = lostik.readline().decode('ASCII').rstrip()
+if FIRMWARE_VERSION != 'RN2903 1.0.5 Nov 06 2018 10:45:27':
+    console.print('[bright_red][ERROR][/] LoStik failed to return expected firmware version!')
     sys.exit(1)
 
 #attempt to pause mac (LoRaWAN) as required to issue commands directly to the radio
 lostik.write(b'mac pause\r\n')
 if lostik.readline().decode('ASCII').rstrip() != '4294967245':
-    console.print('[bright_red]ERROR[/]: Unable to disable LoRaWAN!')
+    console.print('[bright_red][ERROR][/] Failed to disable LoRaWAN!')
     sys.exit(1)
 
 #initialize lostik for PiERS operation
 lostik.write(b''.join([b'radio set freq ', lostik_settings.SET_FREQ, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() != 'ok':
-    console.print('[bright_red]ERROR[/]: Failed to set LoStik frequency!')
+    console.print('[bright_red][ERROR][/] Failed to set LoStik frequency!')
     sys.exit(1)
 lostik.write(b''.join([b'radio set sf ', lostik_settings.SET_SF, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() != 'ok':
-    console.print('[bright_red]ERROR[/]: Failed to set LoStik spreading factor!')
+    console.print('[bright_red][ERROR][/] Failed to set LoStik spreading factor!')
     sys.exit(1)
 lostik.write(b''.join([b'radio set bw ', lostik_settings.SET_BW, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() != 'ok':
-    console.print('[bright_red]ERROR[/]: Failed to set LoStik radio bandwidth!')
+    console.print('[bright_red][ERROR][/] Failed to set LoStik radio bandwidth!')
     sys.exit(1)
 lostik.write(b''.join([b'radio set cr ', lostik_settings.SET_CR, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() != 'ok':
-    console.print('[bright_red]ERROR[/]: Failed to set LoStik coding rate!')
+    console.print('[bright_red][ERROR][/] Failed to set LoStik coding rate!')
     sys.exit(1)
 lostik.write(b''.join([b'radio set pwr ', SET_PWR, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() != 'ok':
-    console.print('[bright_red]ERROR[/]: Failed to set LoStik transmit power!')
+    console.print('[bright_red][ERROR][/] Failed to set LoStik transmit power!')
     sys.exit(1)
+
+#function: obtain rssi of last received packet
+# returns: rssi
+def get_rssi():
+    lostik.write(b'radio get rssi\r\n')
+    rssi = lostik.readline().decode('ASCII').rstrip()
+    return rssi
+
+#function: obtain snr of last received packet
+# returns: snr
+def get_snr():
+    lostik.write(b'radio get snr\r\n')
+    snr = lostik.readline().decode('ASCII').rstrip()
+    return snr
+
+#function: control blue led
+# accepts: boolean
+def blue_led(state):
+    if state == True:
+        lostik.write(b'sys set pindig GPIO10 1\r\n') #GPIO10 1 = blue tx led on
+        if lostik.readline().decode('ASCII').rstrip() != 'ok':
+            console.print('[bright_red][ERROR][/] LED control failure!')
+            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
+            sys.exit(1)
+    if state == False:
+        lostik.write(b'sys set pindig GPIO10 0\r\n') #GPIO10 0 = blue tx led off
+        if lostik.readline().decode('ASCII').rstrip() != 'ok':
+            console.print('[bright_red][ERROR][/] LED control failure!')
+            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
+            sys.exit(1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+#function: control red led
+# accepts: boolean
+def red_led(state):
+    if state == True:
+        lostik.write(b'sys set pindig GPIO11 1\r\n') #GPIO11 1 = red tx led on
+        if lostik.readline().decode('ASCII').rstrip() != 'ok':
+            console.print('[bright_red][ERROR][/] LED control failure!')
+            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
+            sys.exit(1)
+    if state == False:
+        lostik.write(b'sys set pindig GPIO11 0\r\n') #GPIO11 0 = red tx led off
+        if lostik.readline().decode('ASCII').rstrip() != 'ok':
+            console.print('[bright_red][ERROR][/] LED control failure!')
+            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
+            sys.exit(1)
+
+
+
+
+
+
+
+            return True
+        else:
+            return False
+    elif state == 'on':
+        lostik.write(b'sys set pindig GPIO11 1\r\n') #GPIO11 = red tx led
+        if lostik.readline().decode('ASCII').rstrip() == 'ok':
+            return True
+        else:
+            return False
+
+
+
+#NEED BETTER LED CONTROL LOGIC
 
 #function: control lostik LEDs
 # accepts: led and state with values of 'rx' or 'tx' and 'on' or 'off' respectively
@@ -158,58 +224,71 @@ def lostik_led_control(led, state): #values are rx/tx and on/off
     else:
         return False
 
+
+
 #function: control lostik receive state
-# accepts: state with values of 'on' or 'off'
-# returns: boolean
+# accepts: boolean
 #    note: exits on communication failure
-def lostik_rx_control(state): #state values are 'on' or 'off'
-    if state == 'on':
+def rx(state):
+    if state == True:
         #place LoStik in continuous receive mode
         lostik.write(b'radio rx 0\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
             refresh_ui('rx')
-            return True
         else:
-            console.print('[bright_red]ERROR[/]: Serial interface is busy, unable to communicate with LoStik!')
+            console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
             console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
             sys.exit(1)
-    elif state == 'off':
+    elif state == False:
         #halt LoStik continuous receive mode
         lostik.write(b'radio rxstop\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
             refresh_ui('idle')
-            return True
         else:
-            console.print('[bright_red]ERROR[/]: Serial interface is busy, unable to communicate with LoStik!')
+            console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
             console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
             sys.exit(1)
 
-#function: obtain rssi of last received packet
-# returns: rssi
-def lostik_get_rssi():
-    lostik.write(b'radio get rssi\r\n')
-    rssi = lostik.readline().decode('ASCII').rstrip()
-    return rssi
+# #function: control lostik receive state
+# # accepts: state with values of 'on' or 'off'
+# # returns: boolean
+# #    note: exits on communication failure
+# def lostik_rx_control(state): #state values are 'on' or 'off'
+#     if state == 'on':
+#         #place LoStik in continuous receive mode
+#         lostik.write(b'radio rx 0\r\n')
+#         if lostik.readline().decode('ASCII').rstrip() == 'ok':
+#             refresh_ui('rx')
+#             return True
+#         else:
+#             console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
+#             console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
+#             sys.exit(1)
+#     elif state == 'off':
+#         #halt LoStik continuous receive mode
+#         lostik.write(b'radio rxstop\r\n')
+#         if lostik.readline().decode('ASCII').rstrip() == 'ok':
+#             refresh_ui('idle')
+#             return True
+#         else:
+#             console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
+#             console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
+#             sys.exit(1)
 
-#function: obtain snr of last received packet
-# returns: snr
-def lostik_get_snr():
-    lostik.write(b'radio get snr\r\n')
-    snr = lostik.readline().decode('ASCII').rstrip()
-    return snr
+
+
+
 
 
 #function: render LoStik status interface
 def refresh_ui(lostik_state):
     os.system('cls' if os.name == 'nt' else 'clear')
     console.print(f'╔═╡ LoRa Chat TDMA LoStik Service ╞════════╤════════════════════╗')
-    console.print(f'║ Frequency: {lostik_settings.freq_label} │ Bandwidth: {bw} │ TX Power: {pwr}  ║')
+    console.print(f'║ Frequency: {lostik_settings.FREQ_LABEL} │ Bandwidth: {lostik_settings.BW_LABEL} │ TX Power: {PWR_LABEL}  ║')
     console.print(f'╟────────────────────────┼────────────────────┼────────────────────╢')
-    console.print(f'║ Spreading Factor: {sf}   │ Coding Rate: {cr}   │ Sync Word: {sync}      ║')
+    console.print(f'║ Spreading Factor: {lostik_settings.SF_LABEL}   │ Coding Rate: {lostik_settings.CR_LABEL}         ║')
     console.print(f'╟────────────────────────┼────────────────────┴────────────────────╢')
-    console.print(f'║ Modulation Mode: {mod}  │ Watchdog Timer Time-Out: {wdt}     ║')
     console.print(f'╟────────────────────────┼─────────────────────────────────────────╢')
-    console.print(f'║ Time Scale: {args.timescale}          │ Node ID: {my_node_id}                              ║')
     if lostik_state == 'idle':
         console.print(f'╚════════════════════════╧════════════════════════════════TX═══RX══╝')
     if lostik_state == 'tx':
@@ -219,30 +298,27 @@ def refresh_ui(lostik_state):
     console.print(f'Press CTRL+C to quit.')
     console.print()
 
-#function: traffic cop (check to see if we can transmit)
-# accepts: my node id and current second
-# returns: boolean
-def can_tx(my_node_id,current_second):
-    if args.timescale == 1:
-        if current_second % 5 == 0:
-            if my_node_id == ts1_dict[current_second]:
-                return True
-    elif args.timescale == 2:
-        if current_second % 3 == 0:
-            if my_node_id == ts2_dict[current_second]:
-                return True
-    return False
+
+
+
+
+
+
+
+
+
 
 #function: attempt to transmit hex payload
 # accepts: payload_hex (value to be transmitted)
 # retruns: time_sent and air_time
 #    note: terminates script on error
-def lostik_tx_payload(payload_hex):
+def tx(message):
     tx_start_time = 0
     tx_end_time = 0
     time_sent = 0
     air_time = 0
-    tx_command_elements = 'radio tx ' + payload_hex + '\r\n'
+    message_hex = message.encode('UTF-8').hex()
+    tx_command_elements = 'radio tx ' + message_hex + '\r\n'
     tx_command = tx_command_elements.encode('ASCII')
     lostik.write(tx_command)
     if lostik.readline().decode('ASCII').rstrip() == 'ok':
@@ -250,7 +326,8 @@ def lostik_tx_payload(payload_hex):
         refresh_ui('tx')
         lostik_led_control('tx', 'on')
     else:
-        console.print('[bright_red]ERROR[/]: Transmit failure!')
+        console.print('[bright_red][ERROR][/] Transmit failure!')
+        console.show_cursor(True)
         sys.exit(1)
     response = ''
     while response == '':
@@ -269,42 +346,85 @@ def lostik_tx_payload(payload_hex):
             console.print('WARNING: Transmit failure! Radio error!')
             return time_sent, air_time
 
+
+my_time_slot = None
+
+#time slots are 5 seconds in duration...  however the tx window is only the first second
+TS1_LIST = [0,1,2,3,4,10,11,12,13,14,20,21,22,23,24,30,31,32,33,34,40,41,42,43,44,50,51,52,53,54]
+TS2_LIST = [5,6,7,8,9,15,16,17,18,19,25,26,27,28,29,35,36,37,38,39,45,46,47,48,49,55,56,57,58,59]
+TS1_TX_LIST = [0,10,20,30,40,50]
+TS2_TX_LIST = [5,15,25,35,45,55]
+
+current_time_slot = None
+current_time_slot_tx_window_open = False
+
+#function: refresh current time slot values
+# accepts: current second
+def refresh_time_slot(current_second):
+    if current_second in TS1_LIST:
+        current_time_slot = 1
+        if current_second in TS1_TX_LIST:
+            current_time_slot_tx_window_open = True
+        else:
+            current_time_slot_tx_window_open = False
+    if current_second in TS2_LIST:
+        current_time_slot = 2
+        if current_second in TS2_TX_LIST:
+            current_time_slot_tx_window_open = True
+        else:
+            current_time_slot_tx_window_open = False
+         
+
+
+
+
+console.show_cursor(False)
+
+console.print('just before loop')
 #the loop!!!
 while True:
     try:
         current_second = datetime.datetime.now().second
-        if can_tx(my_node_id,current_second):
-            rowid, payload_hex = lcdb.get_next_tx_payload()
-            if rowid != None and payload_hex != None:
-                if lostik_rx_control('off'):
-                    time_sent, air_time = lostik_tx_payload(payload_hex)
+        refresh_time_slot(current_second)
+        if my_time_slot == None or my_time_slot == current_time_slot:
+            if current_time_slot_tx_window_open:
+                rowid, message = db.get_next_outbound_message()
+                if rowid != None and message != None:
+                    rx(False)
+                    time_sent, air_time = tx(message)
                     if time_sent != 0 and air_time != 0:
-                        lcdb.update_db_record(rowid,time_sent,air_time)
-            else:
-                #sleep to prevent unnecessary database access within the loop
-                time.sleep(2)
-        else:
-            if lostik_rx_control('on'):
-                rx_payload = ''
-                while rx_payload == '':
-                    current_second = datetime.datetime.now().second
-                    if can_tx(my_node_id,current_second):
-                        lostik_rx_control('off')
-                        rx_payload = 'tx_window' #fake payload to break from the loop
-                    else:
-                        rx_payload = lostik.readline().decode('ASCII').rstrip()
+                        db.update_outbound_message(rowid,time_sent,air_time)
+                        if my_time_slot == None:
+                            my_time_slot = current_time_slot
                 else:
-                    if rx_payload == 'busy':
-                        console.print('[bright_red]ERROR[/]: LoStik busy!')
-                        sys.exit(1)
-                    elif rx_payload != 'radio_err' and rx_payload != 'tx_window':
-                        rx_payload_list = rx_payload.split()
-                        payload_hex = rx_payload_list[1]
-                        rssi = lostik_get_rssi()
-                        snr = lostik_get_snr()
-                        lcdb.insert_rx_record(payload_hex,rssi,snr)
+                    #sleep to prevent unnecessary database access within the loop
+                    time.sleep(2)
+        else:
+            rx(True)
+            rx_payload = ''
+            while rx_payload == '':
+                current_second = datetime.datetime.now().second
+                if my_time_slot == current_time_slot:
+                    rx(False)
+                    rx_payload = 'tx_window' #fake payload to break from the loop
+                else:
+                    rx_payload = lostik.readline().decode('ASCII').rstrip()
+            else:
+                if rx_payload == 'busy':
+                    console.print('[bright_red][ERROR][/] LoStik busy!')
+                    sys.exit(1)
+                elif rx_payload != 'radio_err' and rx_payload != 'tx_window':
+                    rx_payload_list = rx_payload.split()
+                    payload_hex = rx_payload_list[1]
+                    message = bytes.fromhex(payload_hex).decode('ASCII')
+                    rssi = get_rssi()
+                    snr = get_snr()
+                    db.insert_inbound_message(message,rssi,snr)
     except KeyboardInterrupt:
         console.print()
         break
+
 lostik.close()
+console.clear()
+console.show_cursor(True)
 sys.exit(0)
