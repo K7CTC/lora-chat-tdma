@@ -14,6 +14,7 @@ import serial.tools.list_ports
 from console import console
 import lostik_settings
 import db
+import ui
 
 #import from standard library
 import argparse
@@ -79,10 +80,16 @@ del(lostik_port)
 
 #check LoStik firmware version before proceeding
 lostik.write(b'sys get ver\r\n')
-FIRMWARE_VERSION = lostik.readline().decode('ASCII').rstrip()
-if FIRMWARE_VERSION != 'RN2903 1.0.5 Nov 06 2018 10:45:27':
+if lostik.readline().decode('ASCII').rstrip() != lostik_settings.FIRMWARE_VERSION:
     console.print('[bright_red][ERROR][/] LoStik failed to return expected firmware version!')
     sys.exit(1)
+
+# #check LoStik firmware version before proceeding
+# lostik.write(b'sys get ver\r\n')
+# FIRMWARE_VERSION = lostik.readline().decode('ASCII').rstrip()
+# if FIRMWARE_VERSION != 'RN2903 1.0.5 Nov 06 2018 10:45:27':
+#     console.print('[bright_red][ERROR][/] LoStik failed to return expected firmware version!')
+#     sys.exit(1)
 
 #attempt to pause mac (LoRaWAN) as required to issue commands directly to the radio
 lostik.write(b'mac pause\r\n')
@@ -261,14 +268,14 @@ def refresh_time_slot(current_second):
 
 console.show_cursor(False)
 
-console.print('just before loop')
+ui.lostik_service_static_content()
+ui.lostik_service_insert_firmware_version()
+
 #the loop!!!
 while True:
     try:
         current_second = datetime.datetime.now().second
         refresh_time_slot(current_second)
-        print(current_time_slot)
-        print(current_time_slot_tx_window_open)
         if my_time_slot == None or my_time_slot == current_time_slot:
             if current_time_slot_tx_window_open:
                 rowid, message = db.get_next_outbound_message()

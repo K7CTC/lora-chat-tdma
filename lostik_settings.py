@@ -18,6 +18,9 @@ BW_LABEL = '125 KHz'
 SET_CR = b'4/8'
 CR_LABEL = '4/8'
 
+#Firmware Version
+FIRMWARE_VERSION = 'RN2903 1.0.5 Nov 06 2018 10:45:27'
+
 # #Modulation Mode (hardware default=lora)
 # #this exists just in case the radio was somehow mistakenly set to FSK
 # SET_MOD = b'lora'
