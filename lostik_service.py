@@ -11,38 +11,37 @@ import serial
 import serial.tools.list_ports
 
 #import from project library
-from console import console, move_cursor
+from console import console
 import lostik_settings
 import db
 
 #import from standard library
 import argparse
 import datetime
-import os
 import sys
 import time
 
 console.clear()
 
 #establish and parse command line arguments
-parser = argparse.ArgumentParser(description='LoRa Chat - TDMA LoStik Service',
+parser = argparse.ArgumentParser(description='PiERS Chat - TDMA LoStik Service',
                                  epilog='Created by K7CTC.')
-parser.add_argument('-p', '--pwr',
+parser.add_argument('-p', '--power',
                     choices=['low','medium','high'],
                     help='LoStik transmit power - default: low',
                     default='low')
 args = parser.parse_args()
-if args.pwr == 'low':
+if args.power == 'low':
     SET_PWR = b'6'
     PWR_LABEL = 'LOW'
     PWR_LABEL_DBM = '7.0 dBm'
     PWR_LABEL_MW = '5.0 mW'
-elif args.pwr =='medium':
+elif args.power =='medium':
     SET_PWR = b'12'
     PWR_LABEL = 'MEDIUM'
     PWR_LABEL_DBM = '13.0 dBm'
     PWR_LABEL_MW = '20.0 mW'
-elif args.pwr == 'high':
+elif args.power == 'high':
     SET_PWR = b'20'
     pwr_label = 'HIGH'
     PWR_LABEL_DBM = '18.5 dBm'
@@ -91,7 +90,11 @@ if lostik.readline().decode('ASCII').rstrip() != '4294967245':
     console.print('[bright_red][ERROR][/] Failed to disable LoRaWAN!')
     sys.exit(1)
 
-#initialize lostik for PiERS operation
+#initialize lostik for PiERS operation   
+lostik.write(b''.join([b'radio set pwr ', SET_PWR, b'\r\n']))
+if lostik.readline().decode('ASCII').rstrip() != 'ok':
+    console.print('[bright_red][ERROR][/] Failed to set LoStik transmit power!')
+    sys.exit(1)
 lostik.write(b''.join([b'radio set freq ', lostik_settings.SET_FREQ, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() != 'ok':
     console.print('[bright_red][ERROR][/] Failed to set LoStik frequency!')
@@ -107,10 +110,6 @@ if lostik.readline().decode('ASCII').rstrip() != 'ok':
 lostik.write(b''.join([b'radio set cr ', lostik_settings.SET_CR, b'\r\n']))
 if lostik.readline().decode('ASCII').rstrip() != 'ok':
     console.print('[bright_red][ERROR][/] Failed to set LoStik coding rate!')
-    sys.exit(1)
-lostik.write(b''.join([b'radio set pwr ', SET_PWR, b'\r\n']))
-if lostik.readline().decode('ASCII').rstrip() != 'ok':
-    console.print('[bright_red][ERROR][/] Failed to set LoStik transmit power!')
     sys.exit(1)
 
 #function: obtain rssi of last received packet
@@ -132,157 +131,25 @@ def get_snr():
 def blue_led(state):
     if state == True:
         lostik.write(b'sys set pindig GPIO10 1\r\n') #GPIO10 1 = blue tx led on
-        if lostik.readline().decode('ASCII').rstrip() != 'ok':
-            console.print('[bright_red][ERROR][/] LED control failure!')
-            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
-            sys.exit(1)
-    if state == False:
+    else:
         lostik.write(b'sys set pindig GPIO10 0\r\n') #GPIO10 0 = blue tx led off
-        if lostik.readline().decode('ASCII').rstrip() != 'ok':
-            console.print('[bright_red][ERROR][/] LED control failure!')
-            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
-            sys.exit(1)
-
-
-
-
-
-
-
-
-
-
-
-
+    response = lostik.readline()
 
 #function: control red led
 # accepts: boolean
 def red_led(state):
     if state == True:
         lostik.write(b'sys set pindig GPIO11 1\r\n') #GPIO11 1 = red tx led on
-        if lostik.readline().decode('ASCII').rstrip() != 'ok':
-            console.print('[bright_red][ERROR][/] LED control failure!')
-            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
-            sys.exit(1)
-    if state == False:
-        lostik.write(b'sys set pindig GPIO11 0\r\n') #GPIO11 0 = red tx led off
-        if lostik.readline().decode('ASCII').rstrip() != 'ok':
-            console.print('[bright_red][ERROR][/] LED control failure!')
-            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
-            sys.exit(1)
-
-
-
-
-
-
-
-            return True
-        else:
-            return False
-    elif state == 'on':
-        lostik.write(b'sys set pindig GPIO11 1\r\n') #GPIO11 = red tx led
-        if lostik.readline().decode('ASCII').rstrip() == 'ok':
-            return True
-        else:
-            return False
-
-
-
-#NEED BETTER LED CONTROL LOGIC
-
-#function: control lostik LEDs
-# accepts: led and state with values of 'rx' or 'tx' and 'on' or 'off' respectively
-# returns: boolean
-def lostik_led_control(led, state): #values are rx/tx and on/off
-    if led == 'rx':
-        if state == 'off':
-            lostik.write(b'sys set pindig GPIO10 0\r\n') #GPIO10 = blue rx led
-            if lostik.readline().decode('ASCII').rstrip() == 'ok':
-                return True
-            else:
-                return False
-        elif state == 'on':
-            lostik.write(b'sys set pindig GPIO10 1\r\n') #GPIO10 = blue rx led
-            if lostik.readline().decode('ASCII').rstrip() == 'ok':
-                return True
-            else:
-                return False
-    elif led == 'tx':
-        if state == 'off':
-            lostik.write(b'sys set pindig GPIO11 0\r\n') #GPIO11 = red tx led
-            if lostik.readline().decode('ASCII').rstrip() == 'ok':
-                return True
-            else:
-                return False
-        elif state == 'on':
-            lostik.write(b'sys set pindig GPIO11 1\r\n') #GPIO11 = red tx led
-            if lostik.readline().decode('ASCII').rstrip() == 'ok':
-                return True
-            else:
-                return False
     else:
-        return False
+        lostik.write(b'sys set pindig GPIO11 0\r\n') #GPIO11 0 = red tx led off
+    response = lostik.readline()
 
 
 
-#function: control lostik receive state
-# accepts: boolean
-#    note: exits on communication failure
-def rx(state):
-    if state == True:
-        #place LoStik in continuous receive mode
-        lostik.write(b'radio rx 0\r\n')
-        if lostik.readline().decode('ASCII').rstrip() == 'ok':
-            refresh_ui('rx')
-        else:
-            console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
-            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
-            sys.exit(1)
-    elif state == False:
-        #halt LoStik continuous receive mode
-        lostik.write(b'radio rxstop\r\n')
-        if lostik.readline().decode('ASCII').rstrip() == 'ok':
-            refresh_ui('idle')
-        else:
-            console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
-            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
-            sys.exit(1)
-
-# #function: control lostik receive state
-# # accepts: state with values of 'on' or 'off'
-# # returns: boolean
-# #    note: exits on communication failure
-# def lostik_rx_control(state): #state values are 'on' or 'off'
-#     if state == 'on':
-#         #place LoStik in continuous receive mode
-#         lostik.write(b'radio rx 0\r\n')
-#         if lostik.readline().decode('ASCII').rstrip() == 'ok':
-#             refresh_ui('rx')
-#             return True
-#         else:
-#             console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
-#             console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
-#             sys.exit(1)
-#     elif state == 'off':
-#         #halt LoStik continuous receive mode
-#         lostik.write(b'radio rxstop\r\n')
-#         if lostik.readline().decode('ASCII').rstrip() == 'ok':
-#             refresh_ui('idle')
-#             return True
-#         else:
-#             console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
-#             console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
-#             sys.exit(1)
-
-
-
-
-
-
-#function: render LoStik status interface
+#NEEDS WORK
+#function: render UI
 def refresh_ui(lostik_state):
-    os.system('cls' if os.name == 'nt' else 'clear')
+    console.clear()
     console.print(f'╔═╡ LoRa Chat TDMA LoStik Service ╞════════╤════════════════════╗')
     console.print(f'║ Frequency: {lostik_settings.FREQ_LABEL} │ Bandwidth: {lostik_settings.BW_LABEL} │ TX Power: {PWR_LABEL}  ║')
     console.print(f'╟────────────────────────┼────────────────────┼────────────────────╢')
@@ -298,18 +165,31 @@ def refresh_ui(lostik_state):
     console.print(f'Press CTRL+C to quit.')
     console.print()
 
-
-
-
-
-
-
-
-
-
+#function: control lostik receive state
+# accepts: boolean
+#    note: exit on error
+def rx(state):
+    if state == True:
+        #place LoStik in continuous receive mode
+        lostik.write(b'radio rx 0\r\n')
+        if lostik.readline().decode('ASCII').rstrip() == 'ok':
+            refresh_ui('rx')
+        else:
+            console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
+            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
+            sys.exit(1)
+    else:
+        #halt LoStik continuous receive mode
+        lostik.write(b'radio rxstop\r\n')
+        if lostik.readline().decode('ASCII').rstrip() == 'ok':
+            refresh_ui('idle')
+        else:
+            console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
+            console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
+            sys.exit(1)
 
 #function: attempt to transmit hex payload
-# accepts: payload_hex (value to be transmitted)
+# accepts: message
 # retruns: time_sent and air_time
 #    note: terminates script on error
 def tx(message):
@@ -324,7 +204,7 @@ def tx(message):
     if lostik.readline().decode('ASCII').rstrip() == 'ok':
         tx_start_time = int(round(time.time()*1000))
         refresh_ui('tx')
-        lostik_led_control('tx', 'on')
+        red_led(True)
     else:
         console.print('[bright_red][ERROR][/] Transmit failure!')
         console.show_cursor(True)
@@ -336,13 +216,13 @@ def tx(message):
         if response == 'radio_tx_ok':
             tx_end_time = int(round(time.time()*1000))
             refresh_ui('idle')
-            lostik_led_control('tx', 'off')
+            red_led(False)
             time_sent = tx_end_time
             air_time = tx_end_time - tx_start_time
             return time_sent, air_time
         elif response == 'radio_err':
             refresh_ui('idle')
-            lostik_led_control('tx', 'off')
+            red_led(False)
             console.print('WARNING: Transmit failure! Radio error!')
             return time_sent, air_time
 
@@ -361,6 +241,7 @@ current_time_slot_tx_window_open = False
 #function: refresh current time slot values
 # accepts: current second
 def refresh_time_slot(current_second):
+    global current_time_slot, current_time_slot_tx_window_open
     if current_second in TS1_LIST:
         current_time_slot = 1
         if current_second in TS1_TX_LIST:
@@ -386,6 +267,8 @@ while True:
     try:
         current_second = datetime.datetime.now().second
         refresh_time_slot(current_second)
+        print(current_time_slot)
+        print(current_time_slot_tx_window_open)
         if my_time_slot == None or my_time_slot == current_time_slot:
             if current_time_slot_tx_window_open:
                 rowid, message = db.get_next_outbound_message()

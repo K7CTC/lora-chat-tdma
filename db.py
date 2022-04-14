@@ -6,12 +6,10 @@
 #                                                                      #
 ########################################################################
 
-import os
 import sqlite3
-import time
+from time import time
 from pathlib import Path
 
-#this module is not intended for direct execution
 if __name__ == '__main__':
     print('ERROR: db.py is not intended for direct execution!')
 
@@ -30,18 +28,26 @@ if Path('piers.db').is_file() == False:
     db.commit()
     db.close()
 
-#function: create outgoing message record
-# accepts: validated message
 def insert_outbound_message(message):
     db = sqlite3.connect('piers.db')
     db.execute('INSERT INTO messages (message) VALUES (?)', (message,))
     db.commit()
     db.close()
 
-#TESTED TO HERE#
+def insert_inbound_message(message,rssi,snr):
+    time_received = int(round(time()*1000))
+    db = sqlite3.connect('piers.db')
+    db.execute('''
+        INSERT INTO messages (
+            message,
+            time_received,
+            rssi,
+            snr)
+        VALUES (?, ?, ?, ?)''',
+        (message, time_received, rssi, snr))
+    db.commit()
+    db.close()
 
-#function: get next outbound message
-# returns: rowid integer and message string or none
 def get_next_outbound_message():
     db = sqlite3.connect('piers.db')
     c = db.cursor()       
@@ -63,9 +69,6 @@ def get_next_outbound_message():
     else:
         return None, None
 
-#function: update database after successful transmit
-# accepts: rowid, time_sent and air_time
-# returns: boolean
 def update_outbound_message(rowid,time_sent,air_time):
     db = sqlite3.connect('piers.db')
     c = db.cursor()
@@ -78,25 +81,6 @@ def update_outbound_message(rowid,time_sent,air_time):
         WHERE
             rowid=?''',
         (time_sent,air_time,rowid))
-    db.commit()
-    c.close()
-    db.close()
-    return True
-
-#function: create received message record
-# accepts: payload_hex, rssi and snr
-def insert_inbound_message(message,rssi,snr):
-    db = sqlite3.connect('piers.db')
-    c = db.cursor()
-    time_received = int(round(time.time()*1000))
-    c.execute('''
-        INSERT INTO messages (
-            message,
-            time_received,
-            rssi,
-            snr)
-        VALUES (?, ?, ?, ?)''',
-        (message, time_received, rssi, snr))
     db.commit()
     c.close()
     db.close()
