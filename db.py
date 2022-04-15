@@ -55,11 +55,12 @@ def get_next_outbound_message():
         SELECT
             rowid,
             message,
-            time_sent
+            time_sent,
+            time_received
         FROM
             messages
         WHERE
-            time_sent IS NULL
+            time_sent IS NULL AND time_received IS NULL
         ''')
     record = c.fetchone()
     c.close()
@@ -84,3 +85,21 @@ def update_outbound_message(rowid,time_sent,air_time):
     db.commit()
     c.close()
     db.close()
+
+def get_total_air_time():
+    total_air_time = 0
+    db = sqlite3.connect('piers.db')
+    c = db.cursor()
+    c.execute('''
+        SELECT
+            air_time
+        FROM
+            messages
+        WHERE
+            air_time IS NOT NULL   
+        ''')
+    for record in c.fetchall():
+        total_air_time += record[0]
+    c.close()
+    db.close()
+    return total_air_time

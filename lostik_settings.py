@@ -21,6 +21,15 @@ CR_LABEL = '4/8'
 #Firmware Version
 FIRMWARE_VERSION = 'RN2903 1.0.5 Nov 06 2018 10:45:27'
 
+#Time Slot
+TIME_SLOT = {'0004A30B00F1AAC1': 1, '0004A30B00EAC788': 2}
+
+# #(Globally Unique 64-Bit Identifier (EUI-64)
+# 0004A30B00F1AAC1  <  1
+# 0004A30B00EAC788  <  2
+# 0004A30B00F1007C  <  3
+# 0004A30B00EDB958  <  4
+
 # #Modulation Mode (hardware default=lora)
 # #this exists just in case the radio was somehow mistakenly set to FSK
 # SET_MOD = b'lora'

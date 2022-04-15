@@ -7,6 +7,7 @@
 ########################################################################
 
 #import from required 3rd party libraries
+from re import T
 import serial
 import serial.tools.list_ports
 
@@ -84,12 +85,16 @@ if lostik.readline().decode('ASCII').rstrip() != lostik_settings.FIRMWARE_VERSIO
     console.print('[bright_red][ERROR][/] LoStik failed to return expected firmware version!')
     sys.exit(1)
 
-# #check LoStik firmware version before proceeding
-# lostik.write(b'sys get ver\r\n')
-# FIRMWARE_VERSION = lostik.readline().decode('ASCII').rstrip()
-# if FIRMWARE_VERSION != 'RN2903 1.0.5 Nov 06 2018 10:45:27':
-#     console.print('[bright_red][ERROR][/] LoStik failed to return expected firmware version!')
-#     sys.exit(1)
+#get LoStik EUI-64 (globally unique 64-bit identifier)
+lostik.write(b'sys get hweui\r\n')
+HWEUI = lostik.readline().decode('ASCII').rstrip()
+
+#use EUI-64 to determine time slot
+if HWEUI in lostik_settings.TIME_SLOT.keys():
+    MY_TIME_SLOT = lostik_settings.TIME_SLOT[HWEUI]
+else:
+    console.print('[bright_red][ERROR][/] LoStik is not registered with PiERS!')
+    sys.exit(1)
 
 #attempt to pause mac (LoRaWAN) as required to issue commands directly to the radio
 lostik.write(b'mac pause\r\n')
@@ -152,26 +157,6 @@ def red_led(state):
     response = lostik.readline()
 
 
-
-#NEEDS WORK
-#function: render UI
-def refresh_ui(lostik_state):
-    console.clear()
-    console.print(f'╔═╡ LoRa Chat TDMA LoStik Service ╞════════╤════════════════════╗')
-    console.print(f'║ Frequency: {lostik_settings.FREQ_LABEL} │ Bandwidth: {lostik_settings.BW_LABEL} │ TX Power: {PWR_LABEL}  ║')
-    console.print(f'╟────────────────────────┼────────────────────┼────────────────────╢')
-    console.print(f'║ Spreading Factor: {lostik_settings.SF_LABEL}   │ Coding Rate: {lostik_settings.CR_LABEL}         ║')
-    console.print(f'╟────────────────────────┼────────────────────┴────────────────────╢')
-    console.print(f'╟────────────────────────┼─────────────────────────────────────────╢')
-    if lostik_state == 'idle':
-        console.print(f'╚════════════════════════╧════════════════════════════════TX═══RX══╝')
-    if lostik_state == 'tx':
-        console.print(f'╚════════════════════════╧═══════════════════════════════▌TX▐══RX══╝')
-    if lostik_state == 'rx':
-        console.print(f'╚════════════════════════╧════════════════════════════════TX══▌RX▐═╝')
-    console.print(f'Press CTRL+C to quit.')
-    console.print()
-
 #function: control lostik receive state
 # accepts: boolean
 #    note: exit on error
@@ -180,7 +165,8 @@ def rx(state):
         #place LoStik in continuous receive mode
         lostik.write(b'radio rx 0\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
-            refresh_ui('rx')
+            ui.lostik_service_update_lostik_state('rx  ')
+            blue_led(True)
         else:
             console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
             console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
@@ -189,7 +175,8 @@ def rx(state):
         #halt LoStik continuous receive mode
         lostik.write(b'radio rxstop\r\n')
         if lostik.readline().decode('ASCII').rstrip() == 'ok':
-            refresh_ui('idle')
+            ui.lostik_service_update_lostik_state('idle')
+            blue_led(False)
         else:
             console.print('[bright_red][ERROR][/] Serial interface is busy, unable to communicate with LoStik!')
             console.print('HELP: Disconnect and reconnect LoStik device, then try again.')
@@ -210,7 +197,7 @@ def tx(message):
     lostik.write(tx_command)
     if lostik.readline().decode('ASCII').rstrip() == 'ok':
         tx_start_time = int(round(time.time()*1000))
-        refresh_ui('tx')
+        ui.lostik_service_update_lostik_state('tx  ')
         red_led(True)
     else:
         console.print('[bright_red][ERROR][/] Transmit failure!')
@@ -222,19 +209,16 @@ def tx(message):
     else:
         if response == 'radio_tx_ok':
             tx_end_time = int(round(time.time()*1000))
-            refresh_ui('idle')
+            ui.lostik_service_update_lostik_state('idle')
             red_led(False)
             time_sent = tx_end_time
             air_time = tx_end_time - tx_start_time
             return time_sent, air_time
         elif response == 'radio_err':
-            refresh_ui('idle')
+            ui.lostik_service_update_lostik_state('idle')
             red_led(False)
             console.print('WARNING: Transmit failure! Radio error!')
             return time_sent, air_time
-
-
-my_time_slot = None
 
 #time slots are 5 seconds in duration...  however the tx window is only the first second
 TS1_LIST = [0,1,2,3,4,10,11,12,13,14,20,21,22,23,24,30,31,32,33,34,40,41,42,43,44,50,51,52,53,54]
@@ -261,22 +245,26 @@ def refresh_time_slot(current_second):
             current_time_slot_tx_window_open = True
         else:
             current_time_slot_tx_window_open = False
-         
-
-
-
+    ui.lostik_service_update_current_time_slot(current_time_slot)
 
 console.show_cursor(False)
 
 ui.lostik_service_static_content()
 ui.lostik_service_insert_firmware_version()
+ui.lostik_service_insert_hweui(HWEUI)
+ui.lostik_service_insert_frequency()
+ui.lostik_service_insert_bandwidth()
+ui.lostik_service_insert_power(PWR_LABEL)
+ui.lostik_service_insert_spreading_factor()
+ui.lostik_service_insert_coding_rate()
+ui.lostik_service_insert_my_time_slot(MY_TIME_SLOT)
 
 #the loop!!!
 while True:
     try:
         current_second = datetime.datetime.now().second
         refresh_time_slot(current_second)
-        if my_time_slot == None or my_time_slot == current_time_slot:
+        if MY_TIME_SLOT == current_time_slot:
             if current_time_slot_tx_window_open:
                 rowid, message = db.get_next_outbound_message()
                 if rowid != None and message != None:
@@ -284,8 +272,6 @@ while True:
                     time_sent, air_time = tx(message)
                     if time_sent != 0 and air_time != 0:
                         db.update_outbound_message(rowid,time_sent,air_time)
-                        if my_time_slot == None:
-                            my_time_slot = current_time_slot
                 else:
                     #sleep to prevent unnecessary database access within the loop
                     time.sleep(2)
@@ -294,7 +280,8 @@ while True:
             rx_payload = ''
             while rx_payload == '':
                 current_second = datetime.datetime.now().second
-                if my_time_slot == current_time_slot:
+                refresh_time_slot(current_second)
+                if MY_TIME_SLOT == current_time_slot:
                     rx(False)
                     rx_payload = 'tx_window' #fake payload to break from the loop
                 else:
