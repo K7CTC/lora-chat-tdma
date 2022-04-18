@@ -2,10 +2,11 @@
 #                                                                      #
 #          NAME:  PiERS Chat - Database Functions                      #
 #  DEVELOPED BY:  Chris Clement (K7CTC)                                #
-#       VERSION:  v2.0 beta                                            #
+#       VERSION:  v2.0 (beta)                                          #
 #                                                                      #
 ########################################################################
 
+#import from standard library
 import sqlite3
 from time import time
 from pathlib import Path
@@ -28,12 +29,6 @@ if Path('piers.db').is_file() == False:
     db.commit()
     db.close()
 
-def insert_outbound_message(message):
-    db = sqlite3.connect('piers.db')
-    db.execute('INSERT INTO messages (message) VALUES (?)', (message,))
-    db.commit()
-    db.close()
-
 def insert_inbound_message(message,rssi,snr):
     time_received = int(round(time()*1000))
     db = sqlite3.connect('piers.db')
@@ -45,6 +40,12 @@ def insert_inbound_message(message,rssi,snr):
             snr)
         VALUES (?, ?, ?, ?)''',
         (message, time_received, rssi, snr))
+    db.commit()
+    db.close()
+
+def insert_outbound_message(message):
+    db = sqlite3.connect('piers.db')
+    db.execute('INSERT INTO messages (message) VALUES (?)', (message,))
     db.commit()
     db.close()
 
@@ -70,7 +71,7 @@ def get_next_outbound_message():
     else:
         return None, None
 
-def update_outbound_message(rowid,time_sent,air_time):
+def update_sent_outbound_message(rowid,time_sent,air_time):
     db = sqlite3.connect('piers.db')
     c = db.cursor()
     c.execute('''
@@ -85,21 +86,3 @@ def update_outbound_message(rowid,time_sent,air_time):
     db.commit()
     c.close()
     db.close()
-
-def get_total_air_time():
-    total_air_time = 0
-    db = sqlite3.connect('piers.db')
-    c = db.cursor()
-    c.execute('''
-        SELECT
-            air_time
-        FROM
-            messages
-        WHERE
-            air_time IS NOT NULL   
-        ''')
-    for record in c.fetchall():
-        total_air_time += record[0]
-    c.close()
-    db.close()
-    return total_air_time

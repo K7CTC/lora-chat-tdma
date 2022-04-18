@@ -9,9 +9,9 @@
 #import from project
 from console import console
 import db
+import ui
 
 #import from standard library
-from time import sleep
 import re
 
 def message_is_valid(message):
@@ -21,23 +21,20 @@ def message_is_valid(message):
     else:
         return False
 
+ui.splash()
+ui.new_message_static_content()
+
 while True:
     try:
-        console.clear()
-        console.print('┌─┤ PiERS Chat - New Message ├─────────────────────────────────────────────────┐')
-        console.print('│ Type a message between 1 and 50 characters then press enter. Your message    │')
-        console.print('│ may only contain A-Z a-Z 0-9 and the following special characters:           │')
-        console.print('│ period, question mark and exclamation mark                                   │')
-        console.print('└──────────────────────────────────────────────────────────────────────────────┘')
-        console.print('Press CTRL+C to quit.')
-        console.print()
-        message = input('New Outbound Message: ')
+        ui.move_cursor(6,19)
+        message = input()
+        ui.move_cursor(6,19)
+        console.print('                                                              ')
         if message_is_valid(message):
             db.insert_outbound_message(message)
         else:
-            console.print()
-            console.print('[bright_red][ERROR][/] Your message contained invalid characters or is of invalid length!')
-            sleep(5)
+            ui.new_message_invalid()
     except KeyboardInterrupt:
-        print()
         break
+
+console.clear()
