@@ -8,6 +8,7 @@
 
 #import from project
 from console import console
+import db
 
 #import from standard library
 from datetime import datetime

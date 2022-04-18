@@ -71,9 +71,9 @@ def lostik_service_insert_bandwidth():
     move_cursor(5,20)
     console.print(lostik_settings.BW_LABEL)
 
-def lostik_service_insert_power(pwr):
+def lostik_service_insert_power(pwr_label,pwr_label_dbm,pwr_label_mw):
     move_cursor(6,20)
-    console.print(pwr)
+    console.print(f'{pwr_label} ({pwr_label_dbm} / {pwr_label_mw})')
 
 def lostik_service_insert_spreading_factor():
     move_cursor(7,20)

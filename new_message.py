@@ -21,8 +21,11 @@ def message_is_valid(message):
     else:
         return False
 
+console.clear()
+console.show_cursor(False)
 ui.splash()
 ui.new_message_static_content()
+console.show_cursor(True)
 
 while True:
     try:
