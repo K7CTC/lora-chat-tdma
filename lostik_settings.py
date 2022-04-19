@@ -35,10 +35,10 @@ TIME_SLOT = {'0004A30B00F1AAC1': 1, '0004A30B00EAC788': 2}
 # SET_MOD = b'lora'
 # MOD_LABEL = 'LoRa'
 
-# #Watchdog Timer Time-Out (hardware default=15000)
-# #value range: 0 to 4294967295 (0 disables wdt functionality)
-# SET_WDT = b'15000'
-# WDT_LABEL = '15 seconds'
+#Watchdog Timer Time-Out (hardware default=15000)
+#value range: 0 to 4294967295 (0 disables wdt functionality)
+SET_WDT = b'0'
+WDT_LABEL = 'disabled'
 
 # #CRC Header (hardware default=on)
 # #values: on, off (not sure what this does, best to use default value)

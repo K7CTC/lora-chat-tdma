@@ -7,6 +7,7 @@
 ########################################################################
 
 #import from required 3rd party libraries
+from telnetlib import Telnet
 import serial
 import serial.tools.list_ports
 
@@ -123,6 +124,11 @@ if lostik.readline().decode('ASCII').rstrip() != 'ok':
     console.print('[bright_red][ERROR][/] Failed to set LoStik coding rate!')
     exit(1)
 
+# lostik.write(b''.join([b'radio set wdt ', lostik_settings.SET_WDT, b'\r\n']))
+# if lostik.readline().decode('ASCII').rstrip() != 'ok':
+#     console.print('[bright_red][ERROR][/] Failed to set LoStik watchdog timer time-out!')
+#     exit(1)
+
 #function: obtain rssi of last received packet
 # returns: rssi
 def get_rssi():
@@ -184,7 +190,7 @@ def rx(state):
             console.show_cursor(True)
             exit(1)
 
-#function: attempt to transmit hex payload
+#function: attempt to transmit outbound message
 # accepts: message
 # returns: time_sent and air_time
 #    note: terminate on error
@@ -193,10 +199,6 @@ def tx(message):
     tx_end_time = 0
     time_sent = 0
     air_time = 0
-
-    #test switching from UTF-8 to ASCII for this function
-    #message_hex = message.encode('UTF-8').hex()
-    
     message_hex = message.encode('ASCII').hex()
     tx_command_elements = 'radio tx ' + message_hex + '\r\n'
     tx_command = tx_command_elements.encode('ASCII')
@@ -228,37 +230,37 @@ def tx(message):
             console.show_cursor(True)
             exit(1)
 
-#time slots are 5 seconds in duration...  however the tx window is only the first second
 TS1_LIST = [0,1,2,3,4,10,11,12,13,14,20,21,22,23,24,30,31,32,33,34,40,41,42,43,44,50,51,52,53,54]
 TS2_LIST = [5,6,7,8,9,15,16,17,18,19,25,26,27,28,29,35,36,37,38,39,45,46,47,48,49,55,56,57,58,59]
-TS1_TX_LIST = [0,10,20,30,40,50]
-TS2_TX_LIST = [5,15,25,35,45,55]
-
 current_time_slot = None
-current_time_slot_tx_window_open = False
 
-#function: refresh current time slot values
-# accepts: current second
 def refresh_time_slot(current_second):
-    global current_time_slot, current_time_slot_tx_window_open
+    global current_time_slot
     if current_second in TS1_LIST:
         current_time_slot = 1
-        if current_second in TS1_TX_LIST:
-            current_time_slot_tx_window_open = True
-        else:
-            current_time_slot_tx_window_open = False
     if current_second in TS2_LIST:
         current_time_slot = 2
-        if current_second in TS2_TX_LIST:
-            current_time_slot_tx_window_open = True
-        else:
-            current_time_slot_tx_window_open = False
     ui.lostik_service_update_current_time_slot(current_time_slot)
 
+TS1_TX_LIST = [0,10,20,30,40,50]
+TS2_TX_LIST = [5,15,25,35,45,55]
+tx_window_open = None
+
+def refresh_tx_window(current_second):
+    global tx_window_open
+    if MY_TIME_SLOT == 1:
+        if current_second in TS1_TX_LIST:
+            tx_window_open = True
+        else:
+            tx_window_open = False
+    if MY_TIME_SLOT == 2:
+        if current_second in TS2_TX_LIST:
+            tx_window_open = True
+        else:
+            tx_window_open = False
+
 console.show_cursor(False)
-
 ui.splash()
-
 ui.lostik_service_static_content()
 ui.lostik_service_insert_firmware_version()
 ui.lostik_service_insert_hweui(HWEUI)
@@ -274,23 +276,24 @@ while True:
     try:
         current_second = datetime.now().second
         refresh_time_slot(current_second)
-        if MY_TIME_SLOT == current_time_slot:
-            if current_time_slot_tx_window_open:
-                rowid, message = db.get_next_outbound_message()
-                if rowid != None and message != None:
-                    rx(False)
-                    time_sent, air_time = tx(message)
-                    db.update_sent_outbound_message(rowid,time_sent,air_time)
-                else:
-                    #sleep to prevent unnecessary database access within the loop
-                    time.sleep(2)
+        refresh_tx_window(current_second)
+        if tx_window_open:
+            rowid, message = db.get_next_outbound_message()
+            if rowid != None and message != None:
+                rx(False)
+                time_sent, air_time = tx(message)
+                db.update_sent_outbound_message(rowid,time_sent,air_time)
+            else:
+                #sleep during tx window
+                time.sleep(1.05)
         else:
             rx(True)
             rx_payload = ''
             while rx_payload == '':
                 current_second = datetime.now().second
                 refresh_time_slot(current_second)
-                if MY_TIME_SLOT == current_time_slot:
+                refresh_tx_window(current_second)
+                if tx_window_open:
                     rx(False)
                     rx_payload = 'tx_window' #fake payload to break from the loop
                 else:
